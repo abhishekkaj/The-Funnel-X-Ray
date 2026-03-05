@@ -77,7 +77,15 @@ function getEcommerceData() {
 
     // Check Platforms
     const isShopify = !!window.Shopify || html.includes('cdn.shopify.com');
-    const isWooCommerce = html.includes('/wp-content/plugins/woocommerce');
+
+    // WooCommerce fallback checks
+    const hasWooClass = document.body && (document.body.classList.contains('woocommerce') || document.body.classList.contains('woocommerce-page'));
+    const hasWooVar = /wc_add_to_cart_params|woocommerce_params/.test(html);
+    const wooGenerator = document.querySelector('meta[name="generator"]');
+    const hasWooMeta = wooGenerator && wooGenerator.content && wooGenerator.content.toLowerCase().includes('woocommerce');
+    const hasWooPath = html.includes('/wp-content/plugins/woocommerce/');
+    const isWooCommerce = hasWooClass || hasWooVar || hasWooMeta || hasWooPath;
+
     const isMagento = !!document.querySelector('meta[name="generator"][content*="Magento"]') || html.includes('Mage.Cookies');
 
     let platforms = [];
