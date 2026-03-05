@@ -713,6 +713,7 @@ function exportVault(data) {
 
             const filename = `funnel-swipe-${domain}-${new Date().getTime()}.html`;
 
+            // Final file saving inside try block
             chrome.downloads.download({
                 url: url,
                 filename: filename,
@@ -722,4 +723,169 @@ function exportVault(data) {
             });
         });
     });
+}
+
+// ==== FULL PAGE CAPTURE LOGIC ====
+
+document.addEventListener('DOMContentLoaded', () => {
+    const captureBtn = document.getElementById('capture-btn');
+    const dlPngBtn = document.getElementById('download-png-btn');
+    const dlPdfBtn = document.getElementById('download-pdf-btn');
+
+    if (captureBtn) captureBtn.addEventListener('click', captureFullPage);
+    if (dlPngBtn) dlPngBtn.addEventListener('click', downloadPNG);
+    if (dlPdfBtn) dlPdfBtn.addEventListener('click', downloadPDF);
+});
+
+async function captureFullPage() {
+    const captureBtn = document.getElementById('capture-btn');
+    const capturingState = document.getElementById('capturing-state');
+    const downloadControls = document.getElementById('download-controls');
+    const canvas = document.getElementById('capture-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // UI Updates
+    captureBtn.style.display = 'none';
+    capturingState.style.display = 'block';
+
+    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+        const tab = tabs[0];
+        if (!tab) return;
+
+        // 1. Prepare: Tame sticky elements and get dimensions
+        const dims = await new Promise(res => {
+            chrome.tabs.sendMessage(tab.id, { action: 'prepare_capture' }, res);
+        });
+
+        if (!dims) {
+            capturingState.innerText = 'Failed to initialize capture.';
+            return;
+        }
+
+        // Setup Canvas
+        canvas.width = dims.width * dims.devicePixelRatio;
+        canvas.height = dims.height * dims.devicePixelRatio;
+        let currentY = 0;
+        let isAtBottom = false;
+
+        // Ensure canvas background is white
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Recursive Capture Loop
+        const captureLoop = async () => {
+            // Capture current viewport
+            const dataUrl = await new Promise(res => {
+                chrome.tabs.captureVisibleTab(null, { format: 'png' }, res);
+            });
+
+            // Draw to canvas
+            await new Promise((res, rej) => {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.drawImage(img, 0, currentY * dims.devicePixelRatio);
+                    res();
+                };
+                img.onerror = rej;
+                img.src = dataUrl;
+            });
+
+            if (isAtBottom) {
+                // Done Capturing
+                return finishCapture(tab.id);
+            }
+
+            // Scroll down
+            const nextY = currentY + dims.viewportHeight;
+            const scrollRes = await new Promise(res => {
+                chrome.tabs.sendMessage(tab.id, { action: 'scroll_page', yOffset: nextY }, res);
+            });
+
+            currentY = nextY;
+            isAtBottom = scrollRes.isAtBottom;
+
+            // Wait a tiny bit extra just to be safe before next capture
+            setTimeout(captureLoop, 150);
+        };
+
+        // Start Loop
+        captureLoop();
+    });
+}
+
+function finishCapture(tabId) {
+    chrome.tabs.sendMessage(tabId, { action: 'cleanup_capture' });
+
+    document.getElementById('capturing-state').style.display = 'none';
+    document.getElementById('download-controls').style.display = 'flex';
+}
+
+function downloadPNG() {
+    const canvas = document.getElementById('capture-canvas');
+    const dataUrl = canvas.toDataURL('image/png');
+
+    let domain = 'webpage';
+    if (window.currentScanData && window.currentScanData.seo && window.currentScanData.seo.canonicalUrl) {
+        try { domain = new URL(window.currentScanData.seo.canonicalUrl).hostname; } catch (e) { }
+    }
+
+    chrome.downloads.download({
+        url: dataUrl,
+        filename: `full-page-${domain}-${new Date().getTime()}.png`,
+        saveAs: true
+    });
+}
+
+function downloadPDF() {
+    const canvas = document.getElementById('capture-canvas');
+    const dataUrl = canvas.toDataURL('image/png');
+
+    let domain = 'webpage';
+    if (window.currentScanData && window.currentScanData.seo && window.currentScanData.seo.canonicalUrl) {
+        try { domain = new URL(window.currentScanData.seo.canonicalUrl).hostname; } catch (e) { }
+    }
+
+    // Create a hidden iframe for native PDF printing
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Full Page: ${domain}</title>
+            <style>
+                @page { margin: 0; size: auto; }
+                body { margin: 0; }
+                img { width: 100%; display: block; }
+            </style>
+        </head>
+        <body>
+            <img src="${dataUrl}">
+            <script>
+                window.onload = () => {
+                    setTimeout(() => {
+                        window.print();
+                    }, 500);
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    doc.close();
+
+    // Cleanup iframe after a delay assuming print dialog opened
+    setTimeout(() => {
+        if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+        }
+    }, 60000); // 1 minute cleanup
 }
