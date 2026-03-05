@@ -423,19 +423,208 @@ function exportVault(data) {
 
         // Capture Tab
         chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
-            const exportPayload = {
-                metadata: {
-                    exportedAt: new Date().toISOString(),
-                    url: window.currentScanData ? window.currentScanData.seo.canonicalUrl || 'unknown' : 'unknown'
-                },
-                data: data,
-                screenshot: dataUrl || null
-            };
+            const dateStr = new Date().toLocaleString();
+            let domain = 'unknown-domain';
+            let screenshotTag = '';
 
-            const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+            if (dataUrl) {
+                screenshotTag = `<img src="${dataUrl}" alt="Funnel Swipe Screenshot" class="screenshot">`;
+            }
+
+            if (window.currentScanData && window.currentScanData.omni && window.currentScanData.omni.hostname) {
+                domain = window.currentScanData.omni.hostname;
+            } else if (window.currentScanData && window.currentScanData.seo && window.currentScanData.seo.canonicalUrl) {
+                try {
+                    domain = new URL(window.currentScanData.seo.canonicalUrl).hostname;
+                } catch (e) { }
+            }
+
+            // Generate clean HTML
+            const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funnel Swipe: ${domain}</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --border: #334155;
+            --success: #10b981;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 40px 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            margin: 0 0 10px 0;
+            background: linear-gradient(to right, #60a5fa, #3b82f6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .header p {
+            color: var(--text-muted);
+            margin: 0;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+        .card {
+            background-color: var(--surface);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .card h2 {
+            font-size: 1.25rem;
+            margin-top: 0;
+            margin-bottom: 16px;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            background-color: rgba(59, 130, 246, 0.15);
+            color: #93c5fd;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin: 4px;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        .screenshot-container {
+            background-color: var(--surface);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            text-align: center;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .screenshot {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        ul {
+            padding-left: 20px;
+            margin: 0;
+            color: var(--text-muted);
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .empty {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Funnel Swipe Vault</h1>
+            <p>Target Domain: <strong>${domain}</strong> | Captured: ${dateStr}</p>
+        </div>
+        
+        <div class="grid">
+            <!-- Platform Stack -->
+            <div class="card">
+                <h2>🏗️ Architecture & Platform</h2>
+                ${data.wp && data.wp.isWordPress ? '<span class="badge" style="color:#10b981; border-color:#10b981;">WordPress Detected</span><br><br>' : ''}
+                ${data.ecommerce && data.ecommerce.platforms && data.ecommerce.platforms.length > 0
+                    ? data.ecommerce.platforms.map(p => `<span class="badge">${p}</span>`).join('')
+                    : '<div class="empty">No standard e-commerce platforms detected.</div>'}
+            </div>
+
+            <!-- SEO & Keywords -->
+            <div class="card">
+                <h2>🔍 SEO & Keyword Density</h2>
+                <div style="margin-bottom:12px;"><strong>Title:</strong> ${data.seo ? data.seo.title : 'N/A'}</div>
+                <div><strong>Top Keywords:</strong></div>
+                ${data.seo && data.seo.topKeywords && data.seo.topKeywords.length > 0
+                    ? data.seo.topKeywords.map(k => `<span class="badge">${k.word} (${k.count})</span>`).join('')
+                    : '<div class="empty">No keyword data extracted.</div>'}
+            </div>
+
+            <!-- Omnichannel Pixels -->
+            <div class="card">
+                <h2>📢 Active Pixels</h2>
+                ${data.omni && (data.omni.fb.length > 0 || data.omni.gtm.length > 0 || data.omni.ga4.length > 0 || data.omni.tiktok.length > 0)
+                    ? `
+                        ${data.omni.fb.map(id => `<span class="badge" style="color:#a5b4fc; border-color:#a5b4fc;">FB: ${id}</span>`).join('')}
+                        ${data.omni.gtm.map(id => `<span class="badge" style="color:#fcd34d; border-color:#fcd34d;">GTM: ${id}</span>`).join('')}
+                        ${data.omni.ga4.map(id => `<span class="badge" style="color:#fcd34d; border-color:#fcd34d;">GA4: ${id}</span>`).join('')}
+                        ${data.omni.tiktok.map(id => `<span class="badge" style="color:#fca5a5; border-color:#fca5a5;">TT: ${id}</span>`).join('')}
+                    `
+                    : '<div class="empty">No major tracking pixels detected.</div>'}
+            </div>
+
+            <!-- Lead Magnets & Assets -->
+            <div class="card">
+                <h2>🧲 Lead Magnets & Forms</h2>
+                ${data.assets && data.assets.emailProviders && data.assets.emailProviders.length > 0
+                    ? data.assets.emailProviders.map(p => `<span class="badge" style="color:#f472b6; border-color:#f472b6;">${p}</span>`).join('')
+                    : '<div class="empty">No integrated email providers detected.</div>'}
+            </div>
+            
+            <!-- Products -->
+            <div class="card">
+                <h2>🛍️ Schema Products</h2>
+                ${data.ecommerce && data.ecommerce.products && data.ecommerce.products.length > 0
+                    ? '<ul>' + data.ecommerce.products.map(p => `<li><strong>${p.name}:</strong> <span style="color:var(--success);">${p.price} ${p.currency}</span></li>`).join('') + '</ul>'
+                    : '<div class="empty">No ld+json product schema found.</div>'}
+            </div>
+            
+            <!-- Hidden Funnels -->
+            <div class="card">
+                <h2>🕵️ Discovered Funnel Steps</h2>
+                ${data.hiddenFunnels && data.hiddenFunnels.length > 0
+                    ? '<ul>' + data.hiddenFunnels.map(u => `<li style="word-break: break-all;">${u}</li>`).join('') + '</ul>'
+                    : '<div class="empty">No hidden funnel endpoints discovered.</div>'}
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <h2 style="color: var(--accent); margin-top: 0; margin-bottom: 20px; text-align: left;">📸 Above-The-Fold Capture</h2>
+            ${screenshotTag || '<div class="empty">Screenshot capture failed or unavailable.</div>'}
+        </div>
+    </div>
+</body>
+</html>`;
+
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
 
-            const filename = `FunnelXRay_Export_${new Date().getTime()}.json`;
+            const filename = `funnel-swipe-${domain}-${new Date().getTime()}.html`;
 
             chrome.downloads.download({
                 url: url,
