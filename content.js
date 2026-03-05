@@ -210,6 +210,92 @@ function getAssetsData() {
     };
 }
 
+function getDesignSystem() {
+    const typography = new Set();
+    const colors = {};
+    const assets = [];
+
+    // 1. Extract Typography
+    const extractFont = (selector) => {
+        try {
+            const el = document.querySelector(selector);
+            if (el) {
+                const styles = window.getComputedStyle(el);
+                if (styles.fontFamily) {
+                    // Clean up the font string
+                    const primaryFont = styles.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
+                    if (primaryFont) typography.add(primaryFont);
+                }
+            }
+        } catch (e) { }
+
+        // If element doesn't exist, we fallback to body style manually
+        if (selector === 'body' && typography.size === 0) {
+            try {
+                const bodyStyles = window.getComputedStyle(document.body);
+                if (bodyStyles && bodyStyles.fontFamily) {
+                    const primaryFont = bodyStyles.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
+                    if (primaryFont) typography.add(primaryFont);
+                }
+            } catch (e) { }
+        }
+    };
+
+    extractFont('body');
+    extractFont('h1');
+    extractFont('h2');
+
+    // 2. Extract Color Palette
+    const htmlContent = document.documentElement.innerHTML || '';
+    // Regex for 3 or 6 char hex codes
+    const hexRegex = /#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})\b/gi;
+    let match;
+
+    // Ignore pure black, white, and transparency equivalents
+    const ignoreList = new Set(['#ffffff', '#fff', '#000000', '#000', '#transparent']);
+
+    while ((match = hexRegex.exec(htmlContent)) !== null) {
+        let hex = match[0].toLowerCase();
+        // Normalize 3-char hex to 6-char
+        if (hex.length === 4) {
+            hex = '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3];
+        }
+
+        if (!ignoreList.has(hex)) {
+            colors[hex] = (colors[hex] || 0) + 1;
+        }
+    }
+
+    // Sort by frequency, take top 10
+    const topColors = Object.entries(colors)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(entry => entry[0]);
+
+    // 3. Extract Visual Assets (Images)
+    const images = document.querySelectorAll('img');
+    const assetSet = new Set();
+
+    images.forEach(img => {
+        if (img.src) {
+            const src = img.src;
+            // Filter out base64, tiny trackers (often 1x1), SVG icons (sometimes)
+            if (!src.startsWith('data:image') && Math.max(img.width, img.naturalWidth || 0) > 30) {
+                assetSet.add(src);
+            }
+        }
+    });
+
+    const topAssets = Array.from(assetSet).slice(0, 10);
+
+    return {
+        typography: Array.from(typography),
+        colors: topColors,
+        assets: topAssets,
+        totalAssetsFound: assetSet.size
+    };
+}
+
 async function getHiddenFunnels() {
     const hiddenUrls = new Set();
     const keywords = ['offer', 'upsell', 'checkout', 'oto', 'thank-you', 'success'];
@@ -251,6 +337,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 ecommerce: getEcommerceData(),
                 omni: getOmnichannelData(),
                 assets: getAssetsData(),
+                design: getDesignSystem(),
                 hiddenFunnels: await getHiddenFunnels()
             };
             sendResponse(data);

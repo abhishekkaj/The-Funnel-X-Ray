@@ -355,3 +355,48 @@ body {
     border: 1px solid var(--border);
     transform: none;
 }
+
+/* Design System / CSS Peeper Styles */
+.color-swatch-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.color-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.color-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.color-hex {
+    font-size: 0.65rem;
+    font-family: monospace;
+    color: var(--text-muted);
+}
+
+.asset-gallery {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.asset-thumbnail {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background-color: var(--surface-light);
+}

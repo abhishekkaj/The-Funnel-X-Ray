@@ -70,6 +70,7 @@ function renderData(data) {
     // Parse Data
     renderWP(data.wp);
     renderSEO(data.seo);
+    renderDesignSystem(data.design);
     renderEcommerce(data.ecommerce);
     renderOmnichannel(data.omni);
     renderAssets(data.assets);
@@ -203,6 +204,69 @@ function renderSEO(seo) {
                 </div>
             </div>
         `;
+    }
+
+    container.innerHTML = html;
+}
+
+function renderDesignSystem(design) {
+    const container = document.getElementById('design-data');
+    if (!container) return;
+
+    let html = '';
+
+    // Typography
+    if (design && design.typography && design.typography.length > 0) {
+        html += `
+            <div class="data-item">
+                <span class="data-label">Typography (Active Fonts)</span>
+                <div class="data-value">
+                    ${design.typography.map(f => `<span class="badge" style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd;">${f}</span>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // Color Palette
+    if (design && design.colors && design.colors.length > 0) {
+        html += `
+            <div class="data-item">
+                <span class="data-label">Extracted Color Palette</span>
+                <div class="color-swatch-container">
+                    ${design.colors.map(hex => `
+                        <div class="color-item">
+                            <div class="color-circle" style="background-color: ${hex};" title="${hex}"></div>
+                            <span class="color-hex">${hex}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="data-item">
+                <span class="data-label">Extracted Color Palette</span>
+                <div class="data-value" style="color: var(--text-muted);">No distinct brand colors found.</div>
+            </div>
+        `;
+    }
+
+    // Assets
+    if (design && design.assets && design.assets.length > 0) {
+        // Show up to 3 thumbnails
+        const previewAssets = design.assets.slice(0, 3);
+        html += `
+            <div class="data-item">
+                <span class="data-label">Visual Assets (${design.totalAssetsFound} total images found)</span>
+                <div class="asset-gallery">
+                    ${previewAssets.map(src => `<img src="${src}" class="asset-thumbnail" alt="Asset Preview" title="${src}" />`).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    if (html === '') {
+        html = '<div class="data-item"><span class="data-label">Design System</span><div class="data-value" style="color: var(--text-muted);">Could not extract design properties.</div></div>';
     }
 
     container.innerHTML = html;
@@ -573,6 +637,29 @@ function exportVault(data) {
                 ${data.seo && data.seo.topKeywords && data.seo.topKeywords.length > 0
                     ? data.seo.topKeywords.map(k => `<span class="badge">${k.word} (${k.count})</span>`).join('')
                     : '<div class="empty">No keyword data extracted.</div>'}
+            </div>
+
+            <!-- Brand & Design System -->
+            <div class="card">
+                <h2>🎨 Brand & Design System</h2>
+                <div style="margin-bottom:12px;"><strong>Typography:</strong><br>
+                ${data.design && data.design.typography && data.design.typography.length > 0
+                    ? data.design.typography.map(f => `<span class="badge" style="color:#c4b5fd; border-color:#8b5cf6;">${f}</span>`).join('')
+                    : '<div class="empty">No typography extracted.</div>'}
+                </div>
+                
+                <div style="margin-bottom:12px;"><strong>Color Palette:</strong><br>
+                ${data.design && data.design.colors && data.design.colors.length > 0
+                    ? '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">' + data.design.colors.map(hex => `
+                        <div style="display:flex; flex-direction:column; align-items:center;">
+                            <div style="width:30px; height:30px; border-radius:50%; background-color:${hex}; border:1px solid var(--border);"></div>
+                            <span style="font-family:monospace; font-size:0.75rem; color:var(--text-muted); margin-top:4px;">${hex}</span>
+                        </div>
+                    `).join('') + '</div>'
+                    : '<div class="empty">No unique brand colors extracted.</div>'}
+                </div>
+
+                <div><strong>Visuals Extracted:</strong> ${data.design ? data.design.totalAssetsFound : 0} image assets found.</div>
             </div>
 
             <!-- Omnichannel Pixels -->
