@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Funnel X-Ray</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="header">
+        <h1>The Funnel <span>X-Ray</span></h1>
+        <div class="status-indicator"></div>
+    </div>
+
+    <!-- Skeleton Loader State -->
+    <div id="loading-state" class="state-container active">
+        <div class="skeleton skeleton-title"></div>
+        <div class="skeleton skeleton-text"></div>
+        <div class="skeleton skeleton-text"></div>
+        <div class="skeleton skeleton-title mt-4"></div>
+        <div class="skeleton skeleton-text"></div>
+        <div class="skeleton skeleton-text"></div>
+        <div class="skeleton skeleton-title mt-4"></div>
+        <div class="skeleton skeleton-text"></div>
+    </div>
+
+    <!-- Finalized Data View State -->
+    <div id="data-state" class="state-container">
+        <!-- Architecture Accordion -->
+        <div class="accordion">
+            <button class="accordion-header" aria-expanded="false">
+                <span class="icon">🏗️</span> Architecture (WP)
+                <span class="chevron"></span>
+            </button>
+            <div class="accordion-content">
+                <div id="wp-data" class="data-group"></div>
+            </div>
+        </div>
+
+        <!-- SEO X-Ray Accordion -->
+        <div class="accordion">
+            <button class="accordion-header" aria-expanded="false">
+                <span class="icon">🔍</span> SEO X-Ray
+                <span class="chevron"></span>
+            </button>
+            <div class="accordion-content">
+                <div id="seo-data" class="data-group"></div>
+            </div>
+        </div>
+
+        <!-- Ad Campaigns Accordion -->
+        <div class="accordion">
+            <button class="accordion-header" aria-expanded="false">
+                <span class="icon">📢</span> Ad Campaigns
+                <span class="chevron"></span>
+            </button>
+            <div class="accordion-content">
+                <div id="fb-data" class="data-group"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
