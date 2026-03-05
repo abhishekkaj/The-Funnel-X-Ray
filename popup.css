@@ -26,7 +26,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
-    background: linear-gradient(135deg, rgba(30,41,59,0.9) 0%, rgba(15,23,42,0.95) 100%);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
     border-bottom: 1px solid var(--border);
     backdrop-filter: blur(10px);
     position: sticky;
@@ -41,12 +41,14 @@ body {
     letter-spacing: -0.025em;
     background: -webkit-linear-gradient(#f8fafc, #94a3b8);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
 .header span {
     background: -webkit-linear-gradient(#60a5fa, #3b82f6);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -60,9 +62,20 @@ body {
 }
 
 @keyframes pulse {
-    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-    70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+    }
+
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
 }
 
 /* Containers */
@@ -77,8 +90,15 @@ body {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Skeleton Loading */
@@ -92,13 +112,29 @@ body {
 }
 
 @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
 }
 
-.skeleton-title { height: 32px; width: 65%; border-radius: 8px; }
-.skeleton-text { height: 16px; width: 100%; }
-.mt-4 { margin-top: 24px; }
+.skeleton-title {
+    height: 32px;
+    width: 65%;
+    border-radius: 8px;
+}
+
+.skeleton-text {
+    height: 16px;
+    width: 100%;
+}
+
+.mt-4 {
+    margin-top: 24px;
+}
 
 /* Accordion */
 .accordion {
@@ -214,7 +250,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .tag .count {
@@ -251,4 +287,71 @@ body {
 
 .btn:active {
     transform: scale(0.98);
+}
+
+/* Freemium / Locked State Styles */
+.relative-container {
+    position: relative;
+    min-height: 80px;
+}
+
+.blur-overlay {
+    filter: blur(4px);
+    opacity: 0.6;
+    pointer-events: none;
+    user-select: none;
+}
+
+.premium-locked {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.7);
+    z-index: 5;
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+    border-radius: 8px;
+}
+
+.premium-locked .lock-icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+}
+
+.premium-locked .lock-text {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-main);
+    line-height: 1.4;
+}
+
+.premium-locked .lock-highlight {
+    color: var(--accent);
+}
+
+.btn-export {
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    padding: 12px 20px;
+}
+
+.btn-export:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.btn-export:disabled {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    box-shadow: none;
+    cursor: not-allowed;
+    border: 1px solid var(--border);
+    transform: none;
 }

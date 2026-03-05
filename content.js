@@ -210,17 +210,51 @@ function getAssetsData() {
     };
 }
 
+async function getHiddenFunnels() {
+    const hiddenUrls = new Set();
+    const keywords = ['offer', 'upsell', 'checkout', 'oto', 'thank-you', 'success'];
+
+    const checkTextForKeywords = (text) => {
+        // Extract all URLs from the text
+        const urlRegex = /(https?:\/\/[^\s"'<]+)/g;
+        let match;
+        while ((match = urlRegex.exec(text)) !== null) {
+            const url = match[1].toLowerCase();
+            // Check if URL contains any keyword
+            if (keywords.some(kw => url.includes(kw))) {
+                hiddenUrls.add(match[1]); // Add original case
+            }
+        }
+    };
+
+    try {
+        const sitemapRes = await fetch('/sitemap.xml');
+        if (sitemapRes.ok) checkTextForKeywords(await sitemapRes.text());
+    } catch (e) { /* Ignore */ }
+
+    try {
+        const robotsRes = await fetch('/robots.txt');
+        if (robotsRes.ok) checkTextForKeywords(await robotsRes.text());
+    } catch (e) { /* Ignore */ }
+
+    return Array.from(hiddenUrls);
+}
+
 // We can send this over via message listener
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'analyze_page') {
-        const data = {
-            wp: getWordPressData(),
-            seo: getSeoData(),
-            ecommerce: getEcommerceData(),
-            omni: getOmnichannelData(),
-            assets: getAssetsData()
-        };
-        sendResponse(data);
+        // Handle asynchronously
+        (async () => {
+            const data = {
+                wp: getWordPressData(),
+                seo: getSeoData(),
+                ecommerce: getEcommerceData(),
+                omni: getOmnichannelData(),
+                assets: getAssetsData(),
+                hiddenFunnels: await getHiddenFunnels()
+            };
+            sendResponse(data);
+        })();
+        return true; // Keep message channel open for async response
     }
-    return true; // Keep message channel open for async if needed in the future
 });

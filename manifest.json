@@ -1,11 +1,13 @@
 {
   "manifest_version": 3,
   "name": "The Funnel X-Ray",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "One-click digital marketing strategy diagnostic tool.",
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage",
+    "downloads"
   ],
   "background": {
     "service_worker": "background.js"

@@ -28,6 +28,18 @@
 
     <!-- Finalized Data View State -->
     <div id="data-state" class="state-container">
+
+        <!-- Hidden Funnel Steps Accordion (Freemium) -->
+        <div class="accordion" style="border-color: var(--accent);">
+            <button class="accordion-header" aria-expanded="false" style="color: var(--accent);">
+                <span class="icon">🕵️</span> Hidden Funnel Steps
+                <span class="chevron"></span>
+            </button>
+            <div class="accordion-content">
+                <div id="funnel-data" class="data-group relative-container"></div>
+            </div>
+        </div>
+
         <!-- Architecture Accordion -->
         <div class="accordion">
             <button class="accordion-header" aria-expanded="false">
@@ -81,6 +93,13 @@
             <div class="accordion-content">
                 <div id="assets-data" class="data-group"></div>
             </div>
+        </div>
+
+        <!-- Vault Export Button -->
+        <div style="margin-top: 24px; text-align: center;">
+            <button id="export-btn" class="btn btn-export">
+                📥 Export Swipe File (<span id="export-count">0</span>/3 free)
+            </button>
         </div>
     </div>
 

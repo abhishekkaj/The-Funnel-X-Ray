@@ -73,19 +73,46 @@ function renderData(data) {
     renderEcommerce(data.ecommerce);
     renderOmnichannel(data.omni);
     renderAssets(data.assets);
+    renderFunnels(data.hiddenFunnels);
+
+    // Setup Export Button Data
+    window.currentScanData = data;
 
     // Swap UI States
     setTimeout(() => {
         document.getElementById('loading-state').classList.remove('active');
         document.getElementById('data-state').classList.add('active');
 
-        // Open the first accordion by default
+        // Open the first accordion (Hidden Funnels) by default
         const firstAcc = document.querySelector('.accordion-header');
         if (firstAcc) {
             firstAcc.click();
         }
     }, 600); // Artificial slight delay to display loading state
 }
+
+// Setup Export Event Listener once DOM loads
+document.addEventListener('DOMContentLoaded', () => {
+    const exportBtn = document.getElementById('export-btn');
+    if (exportBtn) {
+        // Initialize export count span
+        const currentMonth = new Date().getMonth();
+        chrome.storage.local.get(['exportCount', 'exportMonth'], (res) => {
+            let eCount = res.exportCount || 0;
+            if (res.exportMonth !== currentMonth) eCount = 0;
+            const span = document.getElementById('export-count');
+            if (span) span.innerText = eCount;
+            if (eCount >= 3) {
+                exportBtn.disabled = true;
+                exportBtn.innerText = "🔒 Upgrade to Premium for Unlimited Exports";
+            }
+        });
+
+        exportBtn.addEventListener('click', () => {
+            if (window.currentScanData) exportVault(window.currentScanData);
+        });
+    }
+});
 
 function renderWP(wp) {
     const container = document.getElementById('wp-data');
@@ -316,4 +343,107 @@ function renderAssets(assets) {
     }
 
     container.innerHTML = html;
+}
+
+function renderFunnels(urls) {
+    const container = document.getElementById('funnel-data');
+    let html = '';
+
+    chrome.storage.local.get(['upsellChecks'], (res) => {
+        let count = res.upsellChecks || 0;
+        count++; // Increment usage
+        chrome.storage.local.set({ upsellChecks: count });
+
+        const isLocked = count > 3;
+
+        if (urls && urls.length > 0) {
+            html += `
+                <div class="${isLocked ? 'blur-overlay' : ''}">
+                    <div class="data-item">
+                        <span class="data-label">Exposed Backend Pages</span>
+                        <div class="data-value">
+                            <ul style="margin:0; padding-left: 16px; color: var(--accent);">
+                                ${urls.map(u => `<li style="margin-bottom: 4px; word-break: break-all; font-size: 0.8rem;">
+                                    <a href="${u}" target="_blank" style="color: inherit; text-decoration: none;">${u}</a>
+                                </li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (isLocked) {
+                html += `
+                    <div class="premium-locked">
+                        <div class="lock-icon">🔒</div>
+                        <div class="lock-text">🚨 <span class="lock-highlight">${urls.length}</span> Hidden Pages Found.<br>Upgrade to Premium to unlock backend funnel mapping.</div>
+                        <a href="#" class="btn" style="margin-top: 12px; font-size: 0.8rem; padding: 6px 12px;">Upgrade Now</a>
+                    </div>
+                `;
+            }
+        } else {
+            html += `
+                <div class="data-item">
+                    <span class="data-label">Backend Pages</span>
+                    <div class="data-value" style="color: var(--text-muted);">No obvious hidden funnel URLs found in sitemaps/robots.txt.</div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+    });
+}
+
+function exportVault(data) {
+    const currentMonth = new Date().getMonth();
+    chrome.storage.local.get(['exportCount', 'exportMonth'], (res) => {
+        let count = res.exportCount || 0;
+        let month = res.exportMonth;
+
+        if (month !== currentMonth) {
+            count = 0; // Reset for new month
+            chrome.storage.local.set({ exportMonth: currentMonth });
+        }
+
+        if (count >= 3) {
+            return; // Already hit limit, UI should be locked
+        }
+
+        count++;
+        chrome.storage.local.set({ exportCount: count });
+
+        // Update UI
+        const span = document.getElementById('export-count');
+        const btn = document.getElementById('export-btn');
+        if (span) span.innerText = count;
+        if (count >= 3 && btn) {
+            btn.disabled = true;
+            btn.innerText = "🔒 Upgrade to Premium for Unlimited Exports";
+        }
+
+        // Capture Tab
+        chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
+            const exportPayload = {
+                metadata: {
+                    exportedAt: new Date().toISOString(),
+                    url: window.currentScanData ? window.currentScanData.seo.canonicalUrl || 'unknown' : 'unknown'
+                },
+                data: data,
+                screenshot: dataUrl || null
+            };
+
+            const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const filename = `FunnelXRay_Export_${new Date().getTime()}.json`;
+
+            chrome.downloads.download({
+                url: url,
+                filename: filename,
+                saveAs: true
+            }, () => {
+                URL.revokeObjectURL(url);
+            });
+        });
+    });
 }
