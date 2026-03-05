@@ -72,45 +72,133 @@ function getSeoData() {
     };
 }
 
-function getFacebookPixelData() {
+function getEcommerceData() {
     const html = document.documentElement.outerHTML;
 
-    const pixelIds = new Set();
+    // Check Platforms
+    const isShopify = !!window.Shopify || html.includes('cdn.shopify.com');
+    const isWooCommerce = html.includes('/wp-content/plugins/woocommerce');
+    const isMagento = !!document.querySelector('meta[name="generator"][content*="Magento"]') || html.includes('Mage.Cookies');
 
-    // Match fbq('init', 'ID')
-    const initRegex = /fbq\s*\(\s*['"]init['"]\s*,\s*['"](\d+)['"]\s*\)/g;
-    let match;
-    while ((match = initRegex.exec(html)) !== null) {
-        pixelIds.add(match[1]);
-    }
+    let platforms = [];
+    if (isShopify) platforms.push('Shopify');
+    if (isWooCommerce) platforms.push('WooCommerce');
+    if (isMagento) platforms.push('Magento');
 
-    // Match <noscript> tracking img src (finding facebook.com/tr?id=)
-    const allImgs = document.querySelectorAll('noscript img, img');
-    for (const img of allImgs) {
-        const src = img.getAttribute('src');
-        if (src && src.includes('facebook.com/tr?id=')) {
-            const urlObj = new URL(src, window.location.origin);
-            const id = urlObj.searchParams.get('id');
-            if (id) pixelIds.add(id);
+    // Check Schema
+    let products = [];
+    const schemas = document.querySelectorAll('script[type="application/ld+json"]');
+    schemas.forEach(script => {
+        try {
+            const parsed = JSON.parse(script.innerText);
+            let items = Array.isArray(parsed) ? parsed : [parsed];
+            items.forEach(item => {
+                if (item['@graph']) {
+                    item['@graph'].forEach(g => items.push(g));
+                }
+                if (item['@type'] === 'Product') {
+                    let price = null;
+                    let currency = null;
+
+                    if (item.offers) {
+                        const offers = Array.isArray(item.offers) ? item.offers : [item.offers];
+                        if (offers.length > 0) {
+                            price = offers[0].price || null;
+                            currency = offers[0].priceCurrency || null;
+                        }
+                    }
+                    if (price && currency) {
+                        products.push({ price, currency, name: item.name || 'Unknown Product' });
+                    }
+                }
+            });
+        } catch (e) {
+            // Ignored
         }
-    }
+    });
 
-    // Also do a manual string match for noscript blocks just in case it's not parsed properly in the DOM
-    const noscriptRegex = /<noscript>[\s\S]*?facebook\.com\/tr\?id=(\d+)[\s\S]*?<\/noscript>/g;
-    while ((match = noscriptRegex.exec(html)) !== null) {
-        pixelIds.add(match[1]);
-    }
+    const uniqueProducts = [];
+    const seen = new Set();
+    products.forEach(p => {
+        const key = `${p.name}-${p.price}-${p.currency}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            uniqueProducts.push(p);
+        }
+    });
 
-    // Cleaned hostname for Ads Library
+    return { platforms, products: uniqueProducts };
+}
+
+function getOmnichannelData() {
+    const html = document.documentElement.outerHTML;
+
+    const fbIds = new Set();
+    const gtmIds = new Set();
+    const ga4Ids = new Set();
+    const tiktokIds = new Set();
+    const linkedinIds = new Set();
+
+    let match;
+
+    const fbInitRegex = /fbq\s*\(\s*['"]init['"]\s*,\s*['"](\d+)['"]\s*\)/g;
+    while ((match = fbInitRegex.exec(html)) !== null) fbIds.add(match[1]);
+    const fbNoscriptRegex = /facebook\.com\/tr\?id=(\d+)/g;
+    while ((match = fbNoscriptRegex.exec(html)) !== null) fbIds.add(match[1]);
+
+    const gtmRegex = /(GTM-[A-Z0-9]+)/g;
+    while ((match = gtmRegex.exec(html)) !== null) gtmIds.add(match[1]);
+
+    const ga4Regex = /(G-[A-Z0-9]+)/g;
+    while ((match = ga4Regex.exec(html)) !== null) ga4Ids.add(match[1]);
+
+    const tiktokRegex = /ttq\.load\(['"]([^'"]+)['"]\)/g;
+    while ((match = tiktokRegex.exec(html)) !== null) tiktokIds.add(match[1]);
+
+    const linkedinPartnerRegex = /_linkedin_partner_id\s*=\s*['"]([^'"]+)['"]/g;
+    while ((match = linkedinPartnerRegex.exec(html)) !== null) linkedinIds.add(match[1]);
+
     let hostname = window.location.hostname;
     hostname = hostname.replace(/^(www\.)?(http:\/\/)?(https:\/\/)?/i, '');
-
     const adsLibraryUrl = `https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q=${encodeURIComponent(hostname)}`;
 
     return {
-        pixelIds: Array.from(pixelIds),
+        fb: Array.from(fbIds),
+        gtm: Array.from(gtmIds),
+        ga4: Array.from(ga4Ids),
+        tiktok: Array.from(tiktokIds),
+        linkedin: Array.from(linkedinIds),
         adsLibraryUrl,
         hostname
+    };
+}
+
+function getAssetsData() {
+    const html = document.documentElement.outerHTML;
+
+    const iframes = Array.from(document.querySelectorAll('iframe'));
+    const interactiveEmbeds = [];
+    iframes.forEach(iframe => {
+        const src = iframe.src || '';
+        if (src && !src.includes('doubleclick') && !src.includes('facebook') && !src.includes('google')) {
+            interactiveEmbeds.push(src);
+        }
+    });
+
+    const providers = new Set();
+    const forms = Array.from(document.querySelectorAll('form'));
+    forms.forEach(form => {
+        const action = (form.action || '').toLowerCase();
+        if (action.includes('mailchimp') || action.includes('list-manage')) providers.add('Mailchimp');
+        if (action.includes('klaviyo')) providers.add('Klaviyo');
+        if (action.includes('activecampaign')) providers.add('ActiveCampaign');
+    });
+
+    if (html.toLowerCase().includes('klaviyo_subscribe.js')) providers.add('Klaviyo');
+
+    return {
+        iframes: interactiveEmbeds,
+        emailProviders: Array.from(providers)
     };
 }
 
@@ -120,7 +208,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const data = {
             wp: getWordPressData(),
             seo: getSeoData(),
-            fb: getFacebookPixelData()
+            ecommerce: getEcommerceData(),
+            omni: getOmnichannelData(),
+            assets: getAssetsData()
         };
         sendResponse(data);
     }

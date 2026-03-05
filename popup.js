@@ -70,7 +70,9 @@ function renderData(data) {
     // Parse Data
     renderWP(data.wp);
     renderSEO(data.seo);
-    renderFB(data.fb);
+    renderEcommerce(data.ecommerce);
+    renderOmnichannel(data.omni);
+    renderAssets(data.assets);
 
     // Swap UI States
     setTimeout(() => {
@@ -179,35 +181,139 @@ function renderSEO(seo) {
     container.innerHTML = html;
 }
 
-function renderFB(fb) {
-    const container = document.getElementById('fb-data');
+function renderEcommerce(ecommerce) {
+    const container = document.getElementById('ecommerce-data');
     let html = '';
 
-    if (fb.pixelIds && fb.pixelIds.length > 0) {
+    if (ecommerce.platforms && ecommerce.platforms.length > 0) {
         html += `
             <div class="data-item">
-                <span class="data-label">Active Pixels Detected</span>
+                <span class="data-label">Detected Platforms</span>
                 <div class="data-value">
-                    ${fb.pixelIds.map(id => `<span class="badge" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc;">ID: <span style="font-family: monospace;">${id}</span></span>`).join('')}
+                    ${ecommerce.platforms.map(p => `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: var(--success);">${p}</span>`).join('')}
                 </div>
             </div>
         `;
     } else {
         html += `
             <div class="data-item">
+                <span class="data-label">Platforms</span>
+                <div class="data-value" style="color: var(--text-muted);">Not Detected</div>
+            </div>
+        `;
+    }
+
+    if (ecommerce.products && ecommerce.products.length > 0) {
+        html += `
+            <div class="data-item">
+                <span class="data-label">Product Schema (ld+json)</span>
+                <div class="data-value">
+                    ${ecommerce.products.map(p => `
+                        <div style="margin-bottom: 8px; border-left: 2px solid var(--border); padding-left: 8px;">
+                            <div style="font-weight: 500; font-size: 0.85rem;">${p.name}</div>
+                            <div style="color: var(--success); font-family: monospace;">${p.price} ${p.currency}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="data-item">
+                <span class="data-label">Product Schema (ld+json)</span>
+                <div class="data-value" style="color: var(--text-muted);">Not Detected</div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+function renderOmnichannel(omni) {
+    const container = document.getElementById('omnichannel-data');
+    let html = '';
+    let foundAny = false;
+
+    const renderPixels = (label, ids, color, bgColor) => {
+        if (!ids || ids.length === 0) return '';
+        foundAny = true;
+        return `
+            <div class="data-item">
+                <span class="data-label">${label}</span>
+                <div class="data-value">
+                    ${ids.map(id => `<span class="badge" style="background: ${bgColor}; color: ${color};">ID: <span style="font-family: monospace;">${id}</span></span>`).join('')}
+                </div>
+            </div>
+        `;
+    };
+
+    html += renderPixels('Facebook Pixels', omni.fb, '#a5b4fc', 'rgba(99, 102, 241, 0.2)');
+    html += renderPixels('Google Tag Manager', omni.gtm, '#fcd34d', 'rgba(245, 158, 11, 0.2)');
+    html += renderPixels('GA4 Properties', omni.ga4, '#fcd34d', 'rgba(245, 158, 11, 0.2)');
+    html += renderPixels('TikTok Pixels', omni.tiktok, '#fca5a5', 'rgba(239, 68, 68, 0.2)');
+    html += renderPixels('LinkedIn Insight Tags', omni.linkedin, '#93c5fd', 'rgba(59, 130, 246, 0.2)');
+
+    if (!foundAny) {
+        html += `
+            <div class="data-item">
                 <span class="data-label">Status</span>
-                <div class="data-value" style="color: var(--text-muted);">No Facebook Pixels detected.</div>
+                <div class="data-value" style="color: var(--text-muted);">No omnichannel pixels detected.</div>
             </div>
         `;
     }
 
     html += `
-        <div class="data-item">
+        <div class="data-item" style="margin-top: 16px;">
             <span class="data-label">Ads Library Search</span>
-            <a href="${fb.adsLibraryUrl}" target="_blank" class="btn">View Parent Domain Ads</a>
-            <div style="font-size:0.7rem; color: var(--text-muted); margin-top: 8px; text-align: center;">Target: ${fb.hostname}</div>
+            <a href="${omni.adsLibraryUrl}" target="_blank" class="btn">View Parent Domain Ads</a>
+            <div style="font-size:0.7rem; color: var(--text-muted); margin-top: 8px; text-align: center;">Target: ${omni.hostname}</div>
         </div>
     `;
+
+    container.innerHTML = html;
+}
+
+function renderAssets(assets) {
+    const container = document.getElementById('assets-data');
+    let html = '';
+
+    if (assets.iframes && assets.iframes.length > 0) {
+        html += `
+            <div class="data-item">
+                <span class="data-label">Interactive Embeds (Iframes)</span>
+                <div class="data-value">
+                    <ul style="margin:0; padding-left: 16px; color: var(--text-muted);">
+                        ${assets.iframes.map(src => `<li style="margin-bottom: 4px; word-break: break-all; font-size: 0.8rem;">${src}</li>`).join('')}
+                    </ul>
+                </div>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="data-item">
+                <span class="data-label">Interactive Embeds</span>
+                <div class="data-value" style="color: var(--text-muted);">Not Detected</div>
+            </div>
+        `;
+    }
+
+    if (assets.emailProviders && assets.emailProviders.length > 0) {
+        html += `
+            <div class="data-item">
+                <span class="data-label">Marketing Automation & Email</span>
+                <div class="data-value">
+                    ${assets.emailProviders.map(p => `<span class="badge" style="background: rgba(236, 72, 153, 0.2); color: #f472b6;">${p}</span>`).join('')}
+                </div>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="data-item">
+                <span class="data-label">Marketing Automation & Email</span>
+                <div class="data-value" style="color: var(--text-muted);">Not Detected</div>
+            </div>
+        `;
+    }
 
     container.innerHTML = html;
 }
