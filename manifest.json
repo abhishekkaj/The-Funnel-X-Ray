@@ -7,21 +7,11 @@
     "activeTab",
     "scripting"
   ],
-  "host_permissions": [
-    "http://*/*",
-    "https://*/*"
-  ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
     "default_popup": "popup.html",
     "default_title": "Open The Funnel X-Ray"
-  },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
-    }
-  ]
+  }
 }
