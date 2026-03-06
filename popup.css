@@ -400,3 +400,82 @@ body {
     border: 1px solid var(--border);
     background-color: var(--surface-light);
 }
+
+/* Meta Ad Radar & Visual Skeleton Settings */
+.pulse-dot {
+    width: 10px;
+    height: 10px;
+    background-color: #34d399;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #34d399;
+    animation: pulse 2s infinite;
+}
+
+.skeleton-tree-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    padding: 6px;
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.02);
+    border-left: 2px solid var(--border);
+    transition: background-color 0.2s;
+}
+
+.skeleton-tree-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.skeleton-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 3px 6px;
+    border-radius: 4px;
+    margin-right: 10px;
+    min-width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.badge-H1 {
+    background-color: rgba(139, 92, 246, 0.2);
+    color: #c4b5fd;
+    border: 1px solid rgba(139, 92, 246, 0.5);
+}
+
+.badge-H2 {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.5);
+}
+
+.badge-H3 {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+    border: 1px solid rgba(16, 185, 129, 0.5);
+}
+
+.badge-H4 {
+    background-color: rgba(245, 158, 11, 0.2);
+    color: #fcd34d;
+    border: 1px solid rgba(245, 158, 11, 0.5);
+}
+
+.badge-H5 {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.badge-H6 {
+    background-color: rgba(107, 114, 128, 0.2);
+    color: #d1d5db;
+    border: 1px solid rgba(107, 114, 128, 0.5);
+}
+
+.skeleton-tree-text {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--text-main);
+    word-break: break-word;
+}

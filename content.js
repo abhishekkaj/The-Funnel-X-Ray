@@ -339,6 +339,48 @@ async function getHiddenFunnels() {
     return Array.from(hiddenUrls);
 }
 
+function getVisualSkeleton() {
+    const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    const skeleton = [];
+    headings.forEach(h => {
+        const text = h.innerText.trim();
+        if (text) {
+            skeleton.push({
+                tag: h.tagName,
+                text: text
+            });
+        }
+    });
+    return skeleton;
+}
+
+function getAdLibraryRadar() {
+    const socialLinks = document.querySelectorAll('a[href*="facebook.com"], a[href*="instagram.com"]');
+    let brandHandle = null;
+
+    for (let link of socialLinks) {
+        try {
+            const url = new URL(link.href);
+            const pathParts = url.pathname.split('/').filter(p => p.length > 0 && p !== 'groups' && p !== 'events' && p !== 'pages');
+            if (pathParts.length > 0) {
+                // Ignore query params or specific endpoints
+                if (!url.pathname.includes('/tr')) {
+                    brandHandle = pathParts[0];
+                    break;
+                }
+            }
+        } catch (e) { }
+    }
+
+    if (!brandHandle) {
+        let hostname = window.location.hostname;
+        hostname = hostname.replace(/^(www\.)?(http:\/\/)?(https:\/\/)?/i, '');
+        brandHandle = hostname;
+    }
+
+    return `https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q=${encodeURIComponent(brandHandle)}`;
+}
+
 // We can send this over via message listener
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'analyze_page') {
@@ -351,6 +393,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 omni: getOmnichannelData(),
                 assets: getAssetsData(),
                 design: getDesignSystem(),
+                skeleton: getVisualSkeleton(),
+                adRadar: getAdLibraryRadar(),
                 hiddenFunnels: await getHiddenFunnels()
             };
             sendResponse(data);

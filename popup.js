@@ -75,6 +75,8 @@ function renderData(data) {
     renderOmnichannel(data.omni);
     renderAssets(data.assets);
     renderFunnels(data.hiddenFunnels);
+    renderSkeleton(data.skeleton);
+    renderAdRadar(data.adRadar);
 
     // Setup Export Button Data
     window.currentScanData = data;
@@ -639,6 +641,19 @@ function exportVault(data) {
                     : '<div class="empty">No keyword data extracted.</div>'}
             </div>
 
+            <!-- Page Skeleton (SEO) -->
+            <div class="card">
+                <h2>🦴 Page Skeleton (SEO)</h2>
+                ${data.skeleton && data.skeleton.length > 0
+                    ? '<div style="margin-top:12px;">' + data.skeleton.map(s => {
+                        const level = parseInt(s.tag.replace('H', '')) || 1;
+                        const marginLeft = (level - 1) * 15;
+                        const safeText = s.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                        return `<div style="margin-left: ${marginLeft}px; margin-bottom: 8px; font-size: 0.85rem;"><span style="font-weight:bold; font-size:0.7rem; padding:2px 6px; border-radius:4px; background:rgba(0,0,0,0.05); border:1px solid rgba(0,0,0,0.1); margin-right:8px;">${s.tag}</span>${safeText}</div>`;
+                    }).join('') + '</div>'
+                    : '<div class="empty">No heading tags detected.</div>'}
+            </div>
+
             <!-- Brand & Design System -->
             <div class="card">
                 <h2>🎨 Brand & Design System</h2>
@@ -745,3 +760,45 @@ async function captureFullPage() {
         window.close();
     });
 }
+
+// ==== NEW RENDERING FUNCTIONS ====
+function renderAdRadar(adRadarUrl) {
+    const btn = document.getElementById('ad-radar-btn');
+    if (!btn) return;
+
+    if (adRadarUrl) {
+        btn.href = adRadarUrl;
+        btn.style.display = 'flex';
+    } else {
+        btn.style.display = 'none';
+    }
+}
+
+function renderSkeleton(skeleton) {
+    const container = document.getElementById('skeleton-data');
+    if (!container) return;
+
+    if (!skeleton || skeleton.length === 0) {
+        container.innerHTML = '<div class="data-item"><span class="data-value" style="color: var(--text-muted);">No heading tags detected.</span></div>';
+        return;
+    }
+
+    let html = '';
+    skeleton.forEach(item => {
+        const level = parseInt(item.tag.replace('H', '')) || 1;
+        const marginLeft = (level - 1) * 15;
+
+        // Basic HTML escape for rendering
+        const safeText = item.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+        html += `
+            <div class="skeleton-tree-item" style="margin-left: ${marginLeft}px;">
+                <span class="skeleton-badge badge-${item.tag}">${item.tag}</span>
+                <span class="skeleton-tree-text">${safeText}</span>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
