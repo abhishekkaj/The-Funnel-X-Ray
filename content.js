@@ -361,10 +361,21 @@ function getAdLibraryRadar() {
     for (let link of socialLinks) {
         try {
             const url = new URL(link.href);
-            const ignoredPaths = ['groups', 'events', 'pages', 'share.php', 'sharer.php', 'sharer', 'dialog', 'tools', 'watch', 'marketplace', 'gaming', 'reel', 'p', 'explore', 'stories', 'tv'];
-            const pathParts = url.pathname.split('/').filter(p => p.length > 0 && !ignoredPaths.includes(p));
+            const hostname = url.hostname.toLowerCase();
+
+            // Subdomain Blocklist
+            if (hostname.includes('developers.facebook.com') ||
+                hostname.includes('l.facebook.com') ||
+                hostname.includes('connect.facebook.net') ||
+                hostname.includes('business.facebook.com')) {
+                continue;
+            }
+
+            const ignoredPaths = ['groups', 'events', 'pages', 'share.php', 'sharer.php', 'sharer', 'dialog', 'tools', 'watch', 'marketplace', 'gaming', 'reel', 'p', 'explore', 'stories', 'tv', 'debug', 'policies', 'privacy', 'business', 'help'];
+            const pathParts = url.pathname.split('/').filter(p => p.length > 0 && !ignoredPaths.includes(p.toLowerCase()));
+
             if (pathParts.length > 0) {
-                // Ignore query params or specific endpoints
+                // Ignore query params or specific tracking endpoints
                 if (!url.pathname.includes('/tr')) {
                     brandHandle = pathParts[0];
                     break;
@@ -374,9 +385,8 @@ function getAdLibraryRadar() {
     }
 
     if (!brandHandle) {
-        let hostname = window.location.hostname;
-        hostname = hostname.replace(/^(www\.)?(http:\/\/)?(https:\/\/)?/i, '');
-        brandHandle = hostname;
+        // Fallback: Use the root domain name without the TLD or www.
+        brandHandle = window.location.hostname.replace('www.', '').split('.')[0];
     }
 
     return `https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q=${encodeURIComponent(brandHandle)}`;
