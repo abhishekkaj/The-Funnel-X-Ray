@@ -77,6 +77,7 @@ function renderData(data) {
     renderFunnels(data.hiddenFunnels);
     renderSkeleton(data.skeleton);
     renderAdRadar(data.adRadar);
+    renderOnPageProducts(data.onPageProducts);
 
     // Setup Export Button Data
     window.currentScanData = data;
@@ -706,6 +707,14 @@ function exportVault(data) {
                     : '<div class="empty">No ld+json product schema found.</div>'}
             </div>
             
+            <!-- On-Page Products Catalog -->
+            <div class="card">
+                <h2>🛍️ On-Page Products</h2>
+                ${data.onPageProducts && data.onPageProducts.length > 0
+                    ? '<ul>' + data.onPageProducts.map(p => `<li><strong>${p.title}</strong><br><span style="color:var(--success); font-weight: 500;">${p.price}</span> | <a href="${p.link}" target="_blank" style="color:var(--accent); text-decoration:none;">View Product 🔗</a></li>`).join('') + '</ul>'
+                    : '<div class="empty">No active product grids found natively on the page.</div>'}
+            </div>
+            
             <!-- Hidden Funnels -->
             <div class="card">
                 <h2>🕵️ Discovered Funnel Steps</h2>
@@ -802,3 +811,36 @@ function renderSkeleton(skeleton) {
     container.innerHTML = html;
 }
 
+function renderOnPageProducts(products) {
+    const container = document.getElementById('on-page-products-data');
+    const headerBtn = document.getElementById('product-accordion-btn');
+    if (!container || !headerBtn) return;
+
+    // Update badge count dynamically
+    if (products && products.length > 0) {
+        headerBtn.innerHTML = `
+            <span class="icon">🛍️</span> Products on Page <span class="badge" style="margin-left:8px; margin-bottom:0px; background:rgba(255,255,255,0.1);">${products.length}</span>
+            <span class="chevron"></span>
+        `;
+    }
+
+    if (!products || products.length === 0) {
+        container.innerHTML = '<div class="data-item"><span class="data-value" style="color: var(--text-muted);">No product grid detected on this specific page.</span></div>';
+        return;
+    }
+
+    let html = '';
+    products.forEach(p => {
+        html += `
+            <div class="data-item" style="border-left: 2px solid var(--border); padding-left: 10px; margin-bottom: 12px;">
+                <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-main); margin-bottom: 4px;">${p.title}</div>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <span style="color: var(--success); font-family: monospace; font-weight: 500; font-size: 0.85rem; background: rgba(16,185,129,0.1); padding: 2px 6px; border-radius: 4px;">${p.price || 'Price Hidden'}</span>
+                    <a href="${p.link}" target="_blank" style="color: var(--accent); text-decoration: none; font-size: 0.8rem; font-weight: 500; display:flex; align-items:center; gap:4px;">View 🔗</a>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}

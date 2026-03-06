@@ -419,6 +419,64 @@ function getAdLibraryRadar() {
     return `https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q=${encodeURIComponent(brandHandle)}`;
 }
 
+function extractProductGrid() {
+    const classSelectors = ['.product', 'li.type-product', '.product-card', '.grid-view-item', '.wc-block-grid__product', '[class*="product-card"]'];
+    const products = [];
+    const seenLinks = new Set();
+
+    // Convert NodeList to Array to loop safely, though forEach works too.
+    const elements = document.querySelectorAll(classSelectors.join(', '));
+    elements.forEach(el => {
+        // 1. Find Link
+        const aTag = el.querySelector('a');
+        if (!aTag) return; // Must have a link to be a valid catalog product
+        const link = aTag.href;
+
+        // Deduplicate
+        if (seenLinks.has(link)) return;
+
+        // 2. Find Title
+        let title = '';
+        const titleTag = el.querySelector('h3, h2');
+        if (titleTag && titleTag.innerText.trim()) {
+            title = titleTag.innerText.trim();
+        } else if (aTag.innerText.trim()) {
+            title = aTag.innerText.trim();
+        } else {
+            return; // Skip if we can't formulate a title
+        }
+
+        // 3. Find Price
+        let price = '';
+        const priceEls = el.querySelectorAll('[class*="price"], [class*="amount"]');
+        if (priceEls.length > 0) {
+            // Find the most relevant innerText
+            for (let p of priceEls) {
+                if (p.innerText.trim()) {
+                    price = p.innerText.trim().replace(/\n/g, ' '); // Clean multi-line prices
+                    break;
+                }
+            }
+        }
+
+        // Regex Fallback for price if not found by class
+        if (!price) {
+            // Look for standard currency symbols nearby
+            const currencyRegex = /[$£€₹¥]\s*\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s*[$£€₹¥]/;
+            const match = el.innerText.match(currencyRegex);
+            if (match) {
+                price = match[0];
+            }
+        }
+
+        seenLinks.add(link);
+        products.push({ title, price, link });
+    });
+
+    return products;
+}
+
+
 // We can send this over via message listener
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'analyze_page') {
@@ -433,6 +491,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 design: getDesignSystem(),
                 skeleton: getVisualSkeleton(),
                 adRadar: getAdLibraryRadar(),
+                onPageProducts: extractProductGrid(),
                 hiddenFunnels: await getHiddenFunnels()
             };
             sendResponse(data);
