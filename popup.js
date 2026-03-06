@@ -775,14 +775,14 @@ async function captureFullPage() {
         canvas.height = dims.height * dpr;
 
         let currentY = 0;
-        let isAtBottom = false;
+        let drawnBottom = 0;
 
         // Ensure canvas background is white
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Robust while loop for capturing
-        while (!isAtBottom) {
+        while (true) {
             // Mandatory explicit browser repaint delay
             await new Promise(r => setTimeout(r, 250));
 
@@ -795,23 +795,23 @@ async function captureFullPage() {
             await new Promise((res, rej) => {
                 const img = new Image();
                 img.onload = () => {
-                    // Check if this is the final final slice that needs cropping
-                    if (currentY + dims.viewportHeight > dims.height) {
-                        // Calculate remaining pixels mapped to device ratio
-                        const remainingHeight = dims.height - currentY;
-                        const remainingHeightDpr = remainingHeight * dpr;
-                        // Source Y coordinate to start slicing from the bottom upwards
-                        const sourceY = img.height - remainingHeightDpr;
+                    // Calculate pixels to skip from the top of the image to avoid overlap
+                    const skipPixels = Math.max(0, drawnBottom - currentY);
 
+                    const sourceY = Math.floor(skipPixels * dpr);
+                    const sourceHeight = img.height - sourceY;
+                    const destY = Math.floor(drawnBottom * dpr);
+
+                    if (sourceHeight > 0) {
                         ctx.drawImage(
                             img,
-                            0, sourceY, img.width, remainingHeightDpr, // Source Crop
-                            0, currentY * dpr, img.width, remainingHeightDpr // Destination onto Canvas
+                            0, sourceY, img.width, sourceHeight,            // Source Crop
+                            0, destY, img.width, sourceHeight              // Destination onto Canvas
                         );
-                    } else {
-                        // Normal slice
-                        ctx.drawImage(img, 0, currentY * dpr);
                     }
+
+                    // Update our marker of how much content is safely drawn onto the canvas
+                    drawnBottom = currentY + dims.viewportHeight;
                     res();
                 };
                 img.onerror = rej;
@@ -819,16 +819,46 @@ async function captureFullPage() {
             });
 
             // Scroll down
-            const nextY = currentY + dims.viewportHeight;
             const scrollRes = await new Promise(res => {
-                chrome.tabs.sendMessage(tab.id, { action: 'scroll_page', yOffset: nextY }, res);
+                chrome.tabs.sendMessage(tab.id, { action: 'scroll_next' }, res);
             });
 
-            currentY = nextY;
-            isAtBottom = scrollRes.isAtBottom;
+            // Update viewport height in case the window shifted
+            if (scrollRes.viewportHeight) dims.viewportHeight = scrollRes.viewportHeight;
 
-            // Failsafe exit
-            if (currentY > dims.height + dims.viewportHeight) break;
+            // Kill Switch: Did the scroll fail to move the window?
+            if (Math.abs(scrollRes.currentY - currentY) <= 1) {
+                break;
+            }
+
+            currentY = scrollRes.currentY;
+
+            // Handle dynamically expanding full page height
+            if (scrollRes.fullHeight && (scrollRes.fullHeight * dpr > canvas.height)) {
+                // Save current canvas content
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = canvas.width;
+                tempCanvas.height = canvas.height;
+                tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
+
+                // Expand the main canvas and redraw content
+                canvas.height = scrollRes.fullHeight * dpr;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(tempCanvas, 0, 0);
+            }
+        }
+
+        // Final canvas crop if the final drawn height was less than what we allocated
+        if (drawnBottom > 0 && Math.floor(drawnBottom * dpr) < canvas.height) {
+            const finalHeight = Math.floor(drawnBottom * dpr);
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = finalHeight;
+            tempCanvas.getContext('2d').drawImage(canvas, 0, 0, canvas.width, finalHeight, 0, 0, canvas.width, finalHeight);
+
+            canvas.height = finalHeight;
+            ctx.drawImage(tempCanvas, 0, 0);
         }
 
         // Done Capturing

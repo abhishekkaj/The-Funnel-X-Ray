@@ -348,22 +348,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     if (request.action === 'pre_scroll') {
-        const scrollHeight = Math.max(
-            document.body.scrollHeight, document.documentElement.scrollHeight,
-            document.body.offsetHeight, document.documentElement.offsetHeight,
-            document.body.clientHeight, document.documentElement.clientHeight
-        );
-        const viewportHeight = window.innerHeight;
-
         (async () => {
-            let y = 0;
-            while (y < scrollHeight) {
-                window.scrollTo(0, y);
-                y += viewportHeight;
+            let previousY = -1;
+            while (true) {
+                const currentY = window.scrollY || document.documentElement.scrollTop;
+                if (currentY === previousY) break;
+                previousY = currentY;
+                window.scrollBy(0, window.innerHeight);
                 await new Promise(r => setTimeout(r, 100));
             }
-            window.scrollTo(0, scrollHeight);
-            await new Promise(r => setTimeout(r, 200));
             window.scrollTo(0, 0);
             await new Promise(r => setTimeout(r, 300));
             sendResponse({ success: true });
@@ -401,11 +394,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         setTimeout(() => {
             sendResponse({
                 width: document.documentElement.scrollWidth,
-                height: Math.max(
-                    document.body.scrollHeight, document.documentElement.scrollHeight,
-                    document.body.offsetHeight, document.documentElement.offsetHeight,
-                    document.body.clientHeight, document.documentElement.clientHeight
-                ),
+                height: getFullHeight(),
                 viewportHeight: window.innerHeight,
                 devicePixelRatio: window.devicePixelRatio || 1
             });
@@ -413,24 +402,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
-    if (request.action === 'scroll_page') {
-        window.scrollTo(0, request.yOffset);
+    if (request.action === 'scroll_next') {
+        const previousY = window.scrollY || document.documentElement.scrollTop;
+        window.scrollBy(0, window.innerHeight);
 
         setTimeout(() => {
-            const scrollHeight = Math.max(
-                document.body.scrollHeight, document.documentElement.scrollHeight,
-                document.body.offsetHeight, document.documentElement.offsetHeight,
-                document.body.clientHeight, document.documentElement.clientHeight
-            );
-
-            const isAtBottom = request.yOffset + window.innerHeight >= scrollHeight;
+            const currentY = window.scrollY || document.documentElement.scrollTop;
 
             sendResponse({
-                isAtBottom: isAtBottom,
-                newViewportHeight: window.innerHeight,
-                actualScrollY: window.scrollY || document.documentElement.scrollTop
+                previousY: previousY,
+                currentY: currentY,
+                fullHeight: getFullHeight(),
+                viewportHeight: window.innerHeight
             });
-        }, 300); // Wait 300ms for browser to paint the scroll
+        }, 300); // 300ms delay to allow images and lazy loads to paint
         return true;
     }
 
