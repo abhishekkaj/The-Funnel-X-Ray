@@ -2,6 +2,17 @@
 
 // Global variable for Full Page Capture sticky element restoration
 window.originalStyles = [];
+
+function getFullHeight() {
+    return Math.max(
+        document.body.scrollHeight,
+        document.body.offsetHeight,
+        document.documentElement.clientHeight,
+        document.documentElement.scrollHeight,
+        document.documentElement.offsetHeight
+    );
+}
+
 function getWordPressData() {
     const html = document.documentElement.outerHTML;
 
