@@ -76,6 +76,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         chrome.storage.local.remove(['capturedFrames', 'captureDims']);
 
         statusEl.innerText = '✅ Capture Complete!';
+
+        // Hide spinner
+        const spinner = document.getElementById('status-spinner');
+        if (spinner) spinner.style.display = 'none';
+
         downloadControls.style.display = 'flex';
 
     } catch (e) {
