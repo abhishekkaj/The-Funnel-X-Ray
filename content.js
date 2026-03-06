@@ -361,7 +361,8 @@ function getAdLibraryRadar() {
     for (let link of socialLinks) {
         try {
             const url = new URL(link.href);
-            const pathParts = url.pathname.split('/').filter(p => p.length > 0 && p !== 'groups' && p !== 'events' && p !== 'pages');
+            const ignoredPaths = ['groups', 'events', 'pages', 'share.php', 'sharer.php', 'sharer', 'dialog', 'tools', 'watch', 'marketplace', 'gaming', 'reel', 'p', 'explore', 'stories', 'tv'];
+            const pathParts = url.pathname.split('/').filter(p => p.length > 0 && !ignoredPaths.includes(p));
             if (pathParts.length > 0) {
                 // Ignore query params or specific endpoints
                 if (!url.pathname.includes('/tr')) {
