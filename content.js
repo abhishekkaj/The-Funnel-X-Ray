@@ -109,30 +109,52 @@ function getEcommerceData() {
     // Check Schema
     let products = [];
     const schemas = document.querySelectorAll('script[type="application/ld+json"]');
+
+    function extractProduct(obj) {
+        if (!obj || typeof obj !== 'object') return;
+
+        let isProduct = false;
+        if (obj['@type'] === 'Product') {
+            isProduct = true;
+        } else if (Array.isArray(obj['@type']) && obj['@type'].includes('Product')) {
+            isProduct = true;
+        }
+
+        if (isProduct) {
+            let price = null;
+            let currency = null;
+
+            if (obj.offers) {
+                const offers = Array.isArray(obj.offers) ? obj.offers : [obj.offers];
+                if (offers.length > 0) {
+                    price = offers[0].price || null;
+                    currency = offers[0].priceCurrency || null;
+                }
+            }
+
+            let nameStr = obj.name ? obj.name : 'Product';
+            if (price && currency) {
+                products.push({ name: nameStr, price: price, currency: currency, displayStr: `Detected (Currency: ${currency}, Price: ${price})` });
+            } else {
+                products.push({ name: nameStr, price: '', currency: '', displayStr: `Detected` });
+            }
+        }
+
+        for (let key in obj) {
+            if (Object.hasOwn(obj, key)) {
+                if (Array.isArray(obj[key])) {
+                    obj[key].forEach(item => extractProduct(item));
+                } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+                    extractProduct(obj[key]);
+                }
+            }
+        }
+    }
+
     schemas.forEach(script => {
         try {
             const parsed = JSON.parse(script.innerText);
-            let items = Array.isArray(parsed) ? parsed : [parsed];
-            items.forEach(item => {
-                if (item['@graph']) {
-                    item['@graph'].forEach(g => items.push(g));
-                }
-                if (item['@type'] === 'Product') {
-                    let price = null;
-                    let currency = null;
-
-                    if (item.offers) {
-                        const offers = Array.isArray(item.offers) ? item.offers : [item.offers];
-                        if (offers.length > 0) {
-                            price = offers[0].price || null;
-                            currency = offers[0].priceCurrency || null;
-                        }
-                    }
-                    if (price && currency) {
-                        products.push({ price, currency, name: item.name || 'Unknown Product' });
-                    }
-                }
-            });
+            extractProduct(parsed);
         } catch (e) {
             // Ignored
         }
@@ -199,10 +221,15 @@ function getAssetsData() {
 
     const iframes = Array.from(document.querySelectorAll('iframe'));
     const interactiveEmbeds = [];
+    const iframeBlocklist = ['wp.com', 'wordpress.com', 'googletagmanager.com', 'google.com/recaptcha', 'facebook.com/tr', 'stripe.com', 'paypal.com', 'doubleclick.net'];
+
     iframes.forEach(iframe => {
         const src = iframe.src || '';
-        if (src && !src.includes('doubleclick') && !src.includes('facebook') && !src.includes('google')) {
-            interactiveEmbeds.push(src);
+        if (src) {
+            const isBlocked = iframeBlocklist.some(domain => src.toLowerCase().includes(domain));
+            if (!isBlocked) {
+                interactiveEmbeds.push(src);
+            }
         }
     });
 

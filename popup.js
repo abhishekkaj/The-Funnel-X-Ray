@@ -304,7 +304,7 @@ function renderEcommerce(ecommerce) {
                     ${ecommerce.products.map(p => `
                         <div style="margin-bottom: 8px; border-left: 2px solid var(--border); padding-left: 8px;">
                             <div style="font-weight: 500; font-size: 0.85rem;">${p.name}</div>
-                            <div style="color: var(--success); font-family: monospace;">${p.price} ${p.currency}</div>
+                            <div style="color: var(--success); font-family: monospace;">${p.displayStr}</div>
                         </div>
                     `).join('')}
                 </div>
@@ -702,7 +702,7 @@ function exportVault(data) {
             <div class="card">
                 <h2>🛍️ Schema Products</h2>
                 ${data.ecommerce && data.ecommerce.products && data.ecommerce.products.length > 0
-                    ? '<ul>' + data.ecommerce.products.map(p => `<li><strong>${p.name}:</strong> <span style="color:var(--success);">${p.price} ${p.currency}</span></li>`).join('') + '</ul>'
+                    ? '<ul>' + data.ecommerce.products.map(p => `<li><strong>${p.name}:</strong> <span style="color:var(--success);">${p.displayStr}</span></li>`).join('') + '</ul>'
                     : '<div class="empty">No ld+json product schema found.</div>'}
             </div>
             
