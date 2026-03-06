@@ -34,6 +34,10 @@ async function runFullPageCapture(tabId) {
             // Wait for repaint
             await new Promise(r => setTimeout(r, 300));
 
+            // Hide the overlay so it isn't captured in the screenshot!
+            await chrome.tabs.sendMessage(tabId, { action: 'hide_capture_overlay' }).catch(() => { });
+            await new Promise(r => setTimeout(r, 50)); // Allow DOM to apply display:none
+
             // Capture precise frame using the explicit windowId of the tab
             const dataUrl = await new Promise((res, rej) => {
                 chrome.tabs.get(tabId, (tab) => {
@@ -47,6 +51,9 @@ async function runFullPageCapture(tabId) {
                     });
                 });
             });
+
+            // Re-show the overlay
+            await chrome.tabs.sendMessage(tabId, { action: 'show_capture_overlay' }).catch(() => { });
 
             frames.push({
                 dataUrl: dataUrl,
@@ -74,14 +81,14 @@ async function runFullPageCapture(tabId) {
         // 3. Save payload securely and open dedicated capture preview tab
         await chrome.storage.local.set({ capturedFrames: frames, captureDims: dims });
 
-        // Hide overlay
-        await chrome.tabs.sendMessage(tabId, { action: 'hide_capture_overlay' }).catch(() => { });
+        // Remove overlay permanently
+        await chrome.tabs.sendMessage(tabId, { action: 'remove_capture_overlay' }).catch(() => { });
 
         // Open the native capture app
         chrome.tabs.create({ url: "capture.html" });
 
     } catch (e) {
         console.error("Capture Failed:", e);
-        await chrome.tabs.sendMessage(tabId, { action: 'hide_capture_overlay' }).catch(() => { });
+        await chrome.tabs.sendMessage(tabId, { action: 'remove_capture_overlay' }).catch(() => { });
     }
 }

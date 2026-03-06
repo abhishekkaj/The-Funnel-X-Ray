@@ -380,6 +380,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const elements = document.querySelectorAll('*');
 
         elements.forEach(el => {
+            if (el.id === 'fxr-capture-overlay') return; // Do not touch our own overlay
+
             const style = window.getComputedStyle(el);
             if (style.position === 'fixed' || style.position === 'sticky') {
                 window.originalStyles.push({
@@ -447,29 +449,41 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     if (request.action === 'show_capture_overlay') {
-        const overlay = document.createElement('div');
-        overlay.id = 'fxr-capture-overlay';
-        overlay.style.position = 'fixed';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.width = '100vw';
-        overlay.style.height = '100vh';
-        overlay.style.backgroundColor = 'rgba(0,0,0,0.85)';
-        overlay.style.color = 'white';
+        let overlay = document.getElementById('fxr-capture-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'fxr-capture-overlay';
+            overlay.style.position = 'fixed';
+            overlay.style.bottom = '30px';
+            overlay.style.right = '30px';
+            overlay.style.padding = '15px 25px';
+            overlay.style.backgroundColor = '#1e293b';
+            overlay.style.color = '#ffffff';
+            overlay.style.borderRadius = '8px';
+            overlay.style.boxShadow = '0 10px 25px rgba(0,0,0,0.2)';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.zIndex = '2147483647'; // Max z-index
+            overlay.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+            overlay.style.fontWeight = 'bold';
+            overlay.style.fontSize = '16px';
+            overlay.innerHTML = '📸 Capturing full page...';
+            document.body.appendChild(overlay);
+        }
         overlay.style.display = 'flex';
-        overlay.style.alignItems = 'center';
-        overlay.style.justifyContent = 'center';
-        overlay.style.zIndex = '2147483647'; // Max z-index
-        overlay.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-        overlay.style.fontWeight = 'bold';
-        overlay.style.fontSize = '24px';
-        overlay.innerHTML = '<div style="text-align:center;">📸 Capturing full page...<br><span style="font-size:16px;font-weight:normal;opacity:0.8;margin-top:10px;display:inline-block;">Please keep this tab open and do not scroll.</span></div>';
-        document.body.appendChild(overlay);
         sendResponse({ success: true });
         return true;
     }
 
     if (request.action === 'hide_capture_overlay') {
+        const overlay = document.getElementById('fxr-capture-overlay');
+        if (overlay) overlay.style.display = 'none';
+        sendResponse({ success: true });
+        return true;
+    }
+
+    if (request.action === 'remove_capture_overlay') {
         const overlay = document.getElementById('fxr-capture-overlay');
         if (overlay) document.body.removeChild(overlay);
         sendResponse({ success: true });
