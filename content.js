@@ -347,6 +347,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true; // Keep message channel open for async response
     }
 
+    if (request.action === 'pre_scroll') {
+        const scrollHeight = Math.max(
+            document.body.scrollHeight, document.documentElement.scrollHeight,
+            document.body.offsetHeight, document.documentElement.offsetHeight,
+            document.body.clientHeight, document.documentElement.clientHeight
+        );
+        const viewportHeight = window.innerHeight;
+
+        (async () => {
+            let y = 0;
+            while (y < scrollHeight) {
+                window.scrollTo(0, y);
+                y += viewportHeight;
+                await new Promise(r => setTimeout(r, 100));
+            }
+            window.scrollTo(0, scrollHeight);
+            await new Promise(r => setTimeout(r, 200));
+            window.scrollTo(0, 0);
+            await new Promise(r => setTimeout(r, 300));
+            sendResponse({ success: true });
+        })();
+        return true;
+    }
+
     if (request.action === 'prepare_capture') {
         window.originalStyles = [];
         const elements = document.querySelectorAll('*');
@@ -400,13 +424,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             );
 
             const isAtBottom = request.yOffset + window.innerHeight >= scrollHeight;
-            const actualViewportHeight = window.innerHeight; // Might change slightly on mobile/some sites after scroll
 
             sendResponse({
                 isAtBottom: isAtBottom,
-                newViewportHeight: actualViewportHeight
+                newViewportHeight: window.innerHeight,
+                actualScrollY: window.scrollY || document.documentElement.scrollTop
             });
-        }, 200); // 200ms delay to allow images and lazy loads to paint
+        }, 300); // Wait 300ms for browser to paint the scroll
         return true;
     }
 

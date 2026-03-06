@@ -752,6 +752,13 @@ async function captureFullPage() {
         const tab = tabs[0];
         if (!tab) return;
 
+        capturingState.innerText = '📸 Pre-scrolling to load images...';
+        await new Promise(res => {
+            chrome.tabs.sendMessage(tab.id, { action: 'pre_scroll' }, res);
+        });
+
+        capturingState.innerText = '📸 Capturing frames...';
+
         // 1. Prepare: Tame sticky elements and get dimensions
         const dims = await new Promise(res => {
             chrome.tabs.sendMessage(tab.id, { action: 'prepare_capture' }, res);
@@ -762,9 +769,11 @@ async function captureFullPage() {
             return;
         }
 
-        // Setup Canvas
-        canvas.width = dims.width * dims.devicePixelRatio;
-        canvas.height = dims.height * dims.devicePixelRatio;
+        // Setup Canvas based on Device Pixel Ratio
+        const dpr = dims.devicePixelRatio || 1;
+        canvas.width = dims.width * dpr;
+        canvas.height = dims.height * dpr;
+
         let currentY = 0;
         let isAtBottom = false;
 
@@ -772,28 +781,42 @@ async function captureFullPage() {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Recursive Capture Loop
-        const captureLoop = async () => {
+        // Robust while loop for capturing
+        while (!isAtBottom) {
+            // Mandatory explicit browser repaint delay
+            await new Promise(r => setTimeout(r, 250));
+
             // Capture current viewport
             const dataUrl = await new Promise(res => {
                 chrome.tabs.captureVisibleTab(null, { format: 'png' }, res);
             });
 
-            // Draw to canvas
+            // Draw to canvas with image loading promise
             await new Promise((res, rej) => {
                 const img = new Image();
                 img.onload = () => {
-                    ctx.drawImage(img, 0, currentY * dims.devicePixelRatio);
+                    // Check if this is the final final slice that needs cropping
+                    if (currentY + dims.viewportHeight > dims.height) {
+                        // Calculate remaining pixels mapped to device ratio
+                        const remainingHeight = dims.height - currentY;
+                        const remainingHeightDpr = remainingHeight * dpr;
+                        // Source Y coordinate to start slicing from the bottom upwards
+                        const sourceY = img.height - remainingHeightDpr;
+
+                        ctx.drawImage(
+                            img,
+                            0, sourceY, img.width, remainingHeightDpr, // Source Crop
+                            0, currentY * dpr, img.width, remainingHeightDpr // Destination onto Canvas
+                        );
+                    } else {
+                        // Normal slice
+                        ctx.drawImage(img, 0, currentY * dpr);
+                    }
                     res();
                 };
                 img.onerror = rej;
                 img.src = dataUrl;
             });
-
-            if (isAtBottom) {
-                // Done Capturing
-                return finishCapture(tab.id);
-            }
 
             // Scroll down
             const nextY = currentY + dims.viewportHeight;
@@ -804,12 +827,12 @@ async function captureFullPage() {
             currentY = nextY;
             isAtBottom = scrollRes.isAtBottom;
 
-            // Wait a tiny bit extra just to be safe before next capture
-            setTimeout(captureLoop, 150);
-        };
+            // Failsafe exit
+            if (currentY > dims.height + dims.viewportHeight) break;
+        }
 
-        // Start Loop
-        captureLoop();
+        // Done Capturing
+        finishCapture(tab.id);
     });
 }
 
@@ -838,54 +861,34 @@ function downloadPNG() {
 
 function downloadPDF() {
     const canvas = document.getElementById('capture-canvas');
-    const dataUrl = canvas.toDataURL('image/png');
+
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('jsPDF library failed to load!');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
 
     let domain = 'webpage';
     if (window.currentScanData && window.currentScanData.seo && window.currentScanData.seo.canonicalUrl) {
         try { domain = new URL(window.currentScanData.seo.canonicalUrl).hostname; } catch (e) { }
     }
 
-    // Create a hidden iframe for native PDF printing
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
+    // PDF dimensions mapping to standard A4 width
+    const a4Width = 595.28;
 
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Full Page: ${domain}</title>
-            <style>
-                @page { margin: 0; size: auto; }
-                body { margin: 0; }
-                img { width: 100%; display: block; }
-            </style>
-        </head>
-        <body>
-            <img src="${dataUrl}">
-            <script>
-                window.onload = () => {
-                    setTimeout(() => {
-                        window.print();
-                    }, 500);
-                };
-            </script>
-        </body>
-        </html>
-    `);
-    doc.close();
+    // Calculate aspect ratio height for the PDF based on the canvas scale
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
 
-    // Cleanup iframe after a delay assuming print dialog opened
-    setTimeout(() => {
-        if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-        }
-    }, 60000); // 1 minute cleanup
+    const ratio = canvasHeight / canvasWidth;
+    const pdfHeight = a4Width * ratio;
+
+    // Generate a custom page height so the scroll fits perfectly on one continuous page without splitting sections
+    const dynamicPdf = new jsPDF('p', 'pt', [a4Width, pdfHeight]);
+
+    const imgData = canvas.toDataURL('image/png', 0.8); // 0.8 quality handles file sizes
+
+    dynamicPdf.addImage(imgData, 'PNG', 0, 0, a4Width, pdfHeight, undefined, 'FAST');
+    dynamicPdf.save(`full-page-${domain}-${new Date().getTime()}.pdf`);
 }
