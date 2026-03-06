@@ -432,6 +432,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         window.originalStyles = [];
         window.scrollTo(0, 0);
         sendResponse({ success: true });
-        return false;
+        return true;
+    }
+
+    if (request.action === 'show_capture_overlay') {
+        const overlay = document.createElement('div');
+        overlay.id = 'fxr-capture-overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.85)';
+        overlay.style.color = 'white';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.style.zIndex = '2147483647'; // Max z-index
+        overlay.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+        overlay.style.fontWeight = 'bold';
+        overlay.style.fontSize = '24px';
+        overlay.innerHTML = '<div style="text-align:center;">📸 Capturing full page...<br><span style="font-size:16px;font-weight:normal;opacity:0.8;margin-top:10px;display:inline-block;">Please keep this tab open and do not scroll.</span></div>';
+        document.body.appendChild(overlay);
+        sendResponse({ success: true });
+        return true;
+    }
+
+    if (request.action === 'hide_capture_overlay') {
+        const overlay = document.getElementById('fxr-capture-overlay');
+        if (overlay) document.body.removeChild(overlay);
+        sendResponse({ success: true });
+        return true;
     }
 });

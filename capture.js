@@ -1,92 +1,37 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const targetId = parseInt(urlParams.get('targetId'));
-
-    if (!targetId || isNaN(targetId)) {
-        document.getElementById('status').innerText = 'Error: No valid target tab specified.';
-        return;
-    }
-
     const statusEl = document.getElementById('status');
     const canvas = document.getElementById('capture-canvas');
     const ctx = canvas.getContext('2d');
     const downloadControls = document.getElementById('download-controls');
 
-    let frames = [];
-    let dpr = 1;
-
     try {
-        // Get our own tab ID so we can return to it later
-        const myTab = await new Promise(res => chrome.tabs.getCurrent(res));
+        statusEl.innerText = '⚙️ Finalizing capture rendering...';
 
-        statusEl.innerText = '📸 Pre-scrolling to load images...';
+        const data = await new Promise(res => chrome.storage.local.get(['capturedFrames', 'captureDims'], res));
 
-        // Reactivate the target tab so captureVisibleTab captures it instead of this capture.html tab!
-        await new Promise(res => chrome.tabs.update(targetId, { active: true }, res));
-
-        await new Promise(res => {
-            chrome.tabs.sendMessage(targetId, { action: 'pre_scroll' }, res);
-        });
-
-        statusEl.innerText = '📸 Capturing frames...';
-
-        // 1. Prepare: Tame sticky elements and get dimensions
-        const dims = await new Promise(res => {
-            chrome.tabs.sendMessage(targetId, { action: 'prepare_capture' }, res);
-        });
-
-        if (!dims) {
-            statusEl.innerText = 'Failed to initialize capture. Please reload the target page.';
+        if (!data.capturedFrames || !data.captureDims) {
+            statusEl.innerText = 'Error: Capture data not found in sandbox memory. Please try again.';
             return;
         }
 
-        dpr = dims.devicePixelRatio || 1;
+        const frames = data.capturedFrames;
+        const dims = data.captureDims;
+        const dpr = dims.devicePixelRatio || 1;
+
         canvas.width = dims.width * dpr;
 
-        let currentY = 0;
-        let drawnBottom = 0;
+        // Calculate the maximum actual canvas height needed
+        let maxCanvasHeight = 0;
+        frames.forEach(frame => {
+            maxCanvasHeight = Math.max(maxCanvasHeight, frame.y + dims.viewportHeight);
+        });
+        // We ensure canvas height accommodates the full height the background script observed
+        canvas.height = Math.max(dims.height * dpr, maxCanvasHeight * dpr);
 
-        // Ensure canvas background is white
         ctx.fillStyle = '#ffffff';
-
-        // Robust while loop for capturing
-        while (true) {
-            // Mandatory explicit browser repaint delay
-            await new Promise(r => setTimeout(r, 250));
-
-            // Capture current viewport from the extension page context looking at the targetId window
-            const tabUrlData = await new Promise(res => {
-                chrome.tabs.get(targetId, tab => {
-                    chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' }, res);
-                });
-            });
-
-            frames.push({
-                dataUrl: tabUrlData,
-                y: currentY
-            });
-
-            // Scroll down
-            const scrollRes = await new Promise(res => {
-                chrome.tabs.sendMessage(targetId, { action: 'scroll_next' }, res);
-            });
-
-            // Update viewport height in case the window shifted
-            if (scrollRes.viewportHeight) dims.viewportHeight = scrollRes.viewportHeight;
-
-            // Kill Switch
-            if (Math.abs(scrollRes.currentY - currentY) <= 1) {
-                break;
-            }
-
-            currentY = scrollRes.currentY;
-            canvas.height = scrollRes.fullHeight * dpr;
-        }
-
-        statusEl.innerText = '🧵 Stitching ' + frames.length + ' frames together...';
-
-        // Optional: Ensure canvas has a white background after all resizing
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        statusEl.innerText = '🧵 Stitching ' + frames.length + ' seamless frames together...';
 
         // Rendering Engine
         let finalDrawnBottom = 0;
@@ -127,20 +72,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             ctx.drawImage(tempCanvas, 0, 0);
         }
 
-        // Done Capturing
-        chrome.tabs.sendMessage(targetId, { action: 'cleanup_capture' });
-
-        // Bring the capture.html tab back into focus for the user!
-        if (myTab) {
-            await new Promise(res => chrome.tabs.update(myTab.id, { active: true }, res));
-        }
+        // Flush heavy memory from background storage immediately
+        chrome.storage.local.remove(['capturedFrames', 'captureDims']);
 
         statusEl.innerText = '✅ Capture Complete!';
         downloadControls.style.display = 'flex';
 
     } catch (e) {
         console.error(e);
-        statusEl.innerText = 'Error during capture: ' + e.message;
+        statusEl.innerText = 'Error during stitching: ' + e.message;
     }
 
     // Attach Download Listeners

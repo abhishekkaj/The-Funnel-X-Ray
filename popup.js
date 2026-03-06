@@ -738,8 +738,8 @@ async function captureFullPage() {
         const tab = tabs[0];
         if (!tab) return;
 
-        // Open the dedicated capture page and pass the target tab ID
-        chrome.tabs.create({ url: `capture.html?targetId=${tab.id}` });
+        // Trigger background.js to run the capture loop without freezing the popup memory
+        chrome.runtime.sendMessage({ action: "START_FULL_CAPTURE", tabId: tab.id });
 
         // Cleanly close the popup so it doesn't freeze or consume memory
         window.close();
