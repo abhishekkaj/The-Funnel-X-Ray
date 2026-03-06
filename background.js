@@ -34,9 +34,18 @@ async function runFullPageCapture(tabId) {
             // Wait for repaint
             await new Promise(r => setTimeout(r, 300));
 
-            // Capture precise frame
-            const dataUrl = await new Promise(res => {
-                chrome.tabs.captureVisibleTab(null, { format: 'png' }, res);
+            // Capture precise frame using the explicit windowId of the tab
+            const dataUrl = await new Promise((res, rej) => {
+                chrome.tabs.get(tabId, (tab) => {
+                    chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' }, (imgStr) => {
+                        if (chrome.runtime.lastError) {
+                            console.error("Capture error:", chrome.runtime.lastError.message);
+                            rej(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            res(imgStr);
+                        }
+                    });
+                });
             });
 
             frames.push({
