@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Funnel X-Ray: Full Page Capture</title>
+    <link rel="stylesheet" href="capture.css">
+</head>
+
+<body>
+    <div id="navbar">
+        <div class="logo">📸 The Funnel X-Ray</div>
+        <div id="status">Initializing capture engine...</div>
+        <div class="actions" id="download-controls" style="display: none;">
+            <button id="download-png-btn" class="btn primary">⬇️ Download PNG</button>
+            <button id="download-pdf-btn" class="btn secondary">⬇️ Download PDF</button>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="capture-canvas"></canvas>
+    </div>
+
+    <script src="jspdf.umd.min.js"></script>
+    <script src="capture.js"></script>
+</body>
+
+</html>

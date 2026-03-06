@@ -728,197 +728,20 @@ function exportVault(data) {
 // ==== FULL PAGE CAPTURE LOGIC ====
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Attach event listener for Full Page Capture
     const captureBtn = document.getElementById('capture-btn');
-    const dlPngBtn = document.getElementById('download-png-btn');
-    const dlPdfBtn = document.getElementById('download-pdf-btn');
-
     if (captureBtn) captureBtn.addEventListener('click', captureFullPage);
-    if (dlPngBtn) dlPngBtn.addEventListener('click', downloadPNG);
-    if (dlPdfBtn) dlPdfBtn.addEventListener('click', downloadPDF);
 });
 
 async function captureFullPage() {
-    const captureBtn = document.getElementById('capture-btn');
-    const capturingState = document.getElementById('capturing-state');
-    const downloadControls = document.getElementById('download-controls');
-    const canvas = document.getElementById('capture-canvas');
-    const ctx = canvas.getContext('2d');
-
-    // UI Updates
-    captureBtn.style.display = 'none';
-    capturingState.style.display = 'block';
-
-    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const tab = tabs[0];
         if (!tab) return;
 
-        capturingState.innerText = '📸 Pre-scrolling to load images...';
-        await new Promise(res => {
-            chrome.tabs.sendMessage(tab.id, { action: 'pre_scroll' }, res);
-        });
+        // Open the dedicated capture page and pass the target tab ID
+        chrome.tabs.create({ url: `capture.html?targetId=${tab.id}` });
 
-        capturingState.innerText = '📸 Capturing frames...';
-
-        // 1. Prepare: Tame sticky elements and get dimensions
-        const dims = await new Promise(res => {
-            chrome.tabs.sendMessage(tab.id, { action: 'prepare_capture' }, res);
-        });
-
-        if (!dims) {
-            capturingState.innerText = 'Failed to initialize capture.';
-            return;
-        }
-
-        // Setup Canvas based on Device Pixel Ratio
-        const dpr = dims.devicePixelRatio || 1;
-        canvas.width = dims.width * dpr;
-        canvas.height = dims.height * dpr;
-
-        let currentY = 0;
-        let drawnBottom = 0;
-
-        // Ensure canvas background is white
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Robust while loop for capturing
-        while (true) {
-            // Mandatory explicit browser repaint delay
-            await new Promise(r => setTimeout(r, 250));
-
-            // Capture current viewport
-            const dataUrl = await new Promise(res => {
-                chrome.tabs.captureVisibleTab(null, { format: 'png' }, res);
-            });
-
-            // Draw to canvas with image loading promise
-            await new Promise((res, rej) => {
-                const img = new Image();
-                img.onload = () => {
-                    // Calculate pixels to skip from the top of the image to avoid overlap
-                    const skipPixels = Math.max(0, drawnBottom - currentY);
-
-                    const sourceY = Math.floor(skipPixels * dpr);
-                    const sourceHeight = img.height - sourceY;
-                    const destY = Math.floor(drawnBottom * dpr);
-
-                    if (sourceHeight > 0) {
-                        ctx.drawImage(
-                            img,
-                            0, sourceY, img.width, sourceHeight,            // Source Crop
-                            0, destY, img.width, sourceHeight              // Destination onto Canvas
-                        );
-                    }
-
-                    // Update our marker of how much content is safely drawn onto the canvas
-                    drawnBottom = currentY + dims.viewportHeight;
-                    res();
-                };
-                img.onerror = rej;
-                img.src = dataUrl;
-            });
-
-            // Scroll down
-            const scrollRes = await new Promise(res => {
-                chrome.tabs.sendMessage(tab.id, { action: 'scroll_next' }, res);
-            });
-
-            // Update viewport height in case the window shifted
-            if (scrollRes.viewportHeight) dims.viewportHeight = scrollRes.viewportHeight;
-
-            // Kill Switch: Did the scroll fail to move the window?
-            if (Math.abs(scrollRes.currentY - currentY) <= 1) {
-                break;
-            }
-
-            currentY = scrollRes.currentY;
-
-            // Handle dynamically expanding full page height
-            if (scrollRes.fullHeight && (scrollRes.fullHeight * dpr > canvas.height)) {
-                // Save current canvas content
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = canvas.width;
-                tempCanvas.height = canvas.height;
-                tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
-
-                // Expand the main canvas and redraw content
-                canvas.height = scrollRes.fullHeight * dpr;
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(tempCanvas, 0, 0);
-            }
-        }
-
-        // Final canvas crop if the final drawn height was less than what we allocated
-        if (drawnBottom > 0 && Math.floor(drawnBottom * dpr) < canvas.height) {
-            const finalHeight = Math.floor(drawnBottom * dpr);
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = finalHeight;
-            tempCanvas.getContext('2d').drawImage(canvas, 0, 0, canvas.width, finalHeight, 0, 0, canvas.width, finalHeight);
-
-            canvas.height = finalHeight;
-            ctx.drawImage(tempCanvas, 0, 0);
-        }
-
-        // Done Capturing
-        finishCapture(tab.id);
+        // Cleanly close the popup so it doesn't freeze or consume memory
+        window.close();
     });
-}
-
-function finishCapture(tabId) {
-    chrome.tabs.sendMessage(tabId, { action: 'cleanup_capture' });
-
-    document.getElementById('capturing-state').style.display = 'none';
-    document.getElementById('download-controls').style.display = 'flex';
-}
-
-function downloadPNG() {
-    const canvas = document.getElementById('capture-canvas');
-    const dataUrl = canvas.toDataURL('image/png');
-
-    let domain = 'webpage';
-    if (window.currentScanData && window.currentScanData.seo && window.currentScanData.seo.canonicalUrl) {
-        try { domain = new URL(window.currentScanData.seo.canonicalUrl).hostname; } catch (e) { }
-    }
-
-    chrome.downloads.download({
-        url: dataUrl,
-        filename: `full-page-${domain}-${new Date().getTime()}.png`,
-        saveAs: true
-    });
-}
-
-function downloadPDF() {
-    const canvas = document.getElementById('capture-canvas');
-
-    if (!window.jspdf || !window.jspdf.jsPDF) {
-        alert('jsPDF library failed to load!');
-        return;
-    }
-
-    const { jsPDF } = window.jspdf;
-
-    let domain = 'webpage';
-    if (window.currentScanData && window.currentScanData.seo && window.currentScanData.seo.canonicalUrl) {
-        try { domain = new URL(window.currentScanData.seo.canonicalUrl).hostname; } catch (e) { }
-    }
-
-    // PDF dimensions mapping to standard A4 width
-    const a4Width = 595.28;
-
-    // Calculate aspect ratio height for the PDF based on the canvas scale
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
-
-    const ratio = canvasHeight / canvasWidth;
-    const pdfHeight = a4Width * ratio;
-
-    // Generate a custom page height so the scroll fits perfectly on one continuous page without splitting sections
-    const dynamicPdf = new jsPDF('p', 'pt', [a4Width, pdfHeight]);
-
-    const imgData = canvas.toDataURL('image/png', 0.8); // 0.8 quality handles file sizes
-
-    dynamicPdf.addImage(imgData, 'PNG', 0, 0, a4Width, pdfHeight, undefined, 'FAST');
-    dynamicPdf.save(`full-page-${domain}-${new Date().getTime()}.pdf`);
 }
