@@ -78,6 +78,11 @@ function renderData(data) {
     renderSkeleton(data.skeleton);
     renderAdRadar(data.adRadar);
     renderOnPageProducts(data.onPageProducts);
+    renderDetectedTech(data.detectedTech);
+    renderVSL(data.vsls);
+    renderForms(data.forms);
+    renderCopyPsychology(data.copyMetrics);
+    renderEliteRecon(data.eliteRecon);
 
     // Setup Export Button Data
     window.currentScanData = data;
@@ -98,25 +103,304 @@ function renderData(data) {
 // Setup Export Event Listener once DOM loads
 document.addEventListener('DOMContentLoaded', () => {
     const exportBtn = document.getElementById('export-btn');
-    if (exportBtn) {
-        // Initialize export count span
-        const currentMonth = new Date().getMonth();
-        chrome.storage.local.get(['exportCount', 'exportMonth'], (res) => {
-            let eCount = res.exportCount || 0;
-            if (res.exportMonth !== currentMonth) eCount = 0;
-            const span = document.getElementById('export-count');
-            if (span) span.innerText = eCount;
-            if (eCount >= 3) {
-                exportBtn.disabled = true;
-                exportBtn.innerText = "🔒 Upgrade to Premium for Unlimited Exports";
-            }
-        });
+    const exportStatus = document.getElementById('export-status');
 
+    // Load freemium state
+    chrome.storage.local.get(['exportCount', 'isPro'], (res) => {
+        const isPro = res.isPro || false;
+        let exportCount = res.exportCount || 0;
+
+        if (isPro) {
+            updateUIForProState();
+        } else {
+            // Update export count display
+            const span = document.getElementById('export-count');
+            if (span) span.innerText = exportCount;
+        }
+    });
+
+    // Export button click handler
+    if (exportBtn) {
         exportBtn.addEventListener('click', () => {
-            if (window.currentScanData) exportVault(window.currentScanData);
+            if (!window.currentScanData) return;
+
+            chrome.storage.local.get(['exportCount', 'isPro'], (res) => {
+                const isPro = res.isPro || false;
+                let exportCount = res.exportCount || 0;
+
+                if (isPro) {
+                    // PRO: unlimited exports
+                    exportVault(window.currentScanData);
+                    return;
+                }
+
+                if (exportCount < 3) {
+                    // Free: allow export and increment
+                    exportCount++;
+                    chrome.storage.local.set({ exportCount: exportCount });
+
+                    const span = document.getElementById('export-count');
+                    if (span) span.innerText = exportCount;
+
+                    exportVault(window.currentScanData);
+
+                    // Show remaining exports message
+                    if (exportStatus) {
+                        const remaining = 3 - exportCount;
+                        exportStatus.style.display = 'block';
+                        exportStatus.style.color = '#10b981';
+                        exportStatus.innerText = `✅ Exported! You have ${remaining} free export${remaining !== 1 ? 's' : ''} remaining.`;
+                    }
+
+                    // If they just used their last free export, update button
+                    if (exportCount >= 3) {
+                        exportBtn.disabled = true;
+                        exportBtn.innerText = "🔒 Free Exports Used — Upgrade to PRO";
+                    }
+                } else {
+                    // Free limit hit: show paywall
+                    document.getElementById('data-state').style.display = 'none';
+                    document.getElementById('loading-state').classList.remove('active');
+                    document.getElementById('paywall-screen').style.display = 'block';
+                }
+            });
+        });
+    }
+
+    // Upgrade button → Gumroad
+    const upgradeBtn = document.getElementById('upgrade-btn');
+    if (upgradeBtn) {
+        upgradeBtn.addEventListener('click', () => {
+            chrome.tabs.create({ url: "https://funnelxray.gumroad.com/l/pro?wanted=true" });
+        });
+    }
+
+    // Activate button → Gumroad License Verify
+    const activateBtn = document.getElementById('activate-btn');
+    if (activateBtn) {
+        activateBtn.addEventListener('click', async () => {
+            const input = document.getElementById('license-key-input');
+            const msg = document.getElementById('activation-msg');
+            // Aggressively sanitize: trim + strip all non-printable/invisible chars
+            const licenseKey = input ? input.value.replace(/[^\x20-\x7E]/g, '').trim() : '';
+
+            if (!licenseKey) {
+                msg.style.display = 'block';
+                msg.style.color = '#f87171';
+                msg.innerText = '❌ Please paste a valid license key.';
+                return;
+            }
+
+            // Loading state
+            activateBtn.disabled = true;
+            activateBtn.innerText = '⏳ Verifying...';
+            msg.style.display = 'none';
+
+            try {
+                const formData = new URLSearchParams();
+                formData.append('product_id', 'cSBm2Vyx8Hr_SfOv7aLzzg==');
+                formData.append('license_key', licenseKey);
+                formData.append('increment_uses_count', 'true');
+
+                const response = await fetch('https://api.gumroad.com/v2/licenses/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData.toString()
+                });
+
+                const data = await response.json();
+
+                if (data.success === true && data.purchase && data.purchase.refunded === false) {
+                    // SUCCESS
+                    chrome.storage.local.set({ isPro: true });
+                    msg.style.display = 'block';
+                    msg.style.color = '#10b981';
+                    msg.innerText = '✅ PRO Unlocked! Welcome to God-Mode.';
+
+                    setTimeout(() => {
+                        document.getElementById('paywall-screen').style.display = 'none';
+                        document.getElementById('data-state').style.display = 'block';
+                        updateUIForProState();
+                    }, 2000);
+                } else {
+                    // FAILED — surface the actual Gumroad error
+                    const reason = data.message || 'Invalid or unrecognized license key.';
+                    msg.style.display = 'block';
+                    msg.style.color = '#f87171';
+                    msg.innerText = `❌ ${reason}`;
+                    activateBtn.disabled = false;
+                    activateBtn.innerText = '🔓 Unlock PRO';
+                }
+            } catch (err) {
+                msg.style.display = 'block';
+                msg.style.color = '#f87171';
+                msg.innerText = `❌ Network error: ${err.message || 'Please check your connection.'}`;
+                activateBtn.disabled = false;
+                activateBtn.innerText = '🔓 Unlock PRO';
+            }
         });
     }
 });
+
+function updateUIForProState() {
+    // Show PRO badge
+    const proBadge = document.getElementById('pro-badge');
+    if (proBadge) proBadge.style.display = 'inline';
+
+    // Update export button
+    const exportBtn = document.getElementById('export-btn');
+    if (exportBtn) {
+        exportBtn.disabled = false;
+        exportBtn.innerText = '📥 Export Swipe File (👑 Unlimited)';
+    }
+
+    // Hide paywall if visible
+    const paywall = document.getElementById('paywall-screen');
+    if (paywall) paywall.style.display = 'none';
+
+    // Ensure data state is visible
+    const dataState = document.getElementById('data-state');
+    if (dataState) dataState.style.display = '';
+}
+
+
+function renderDetectedTech(tech) {
+    const container = document.getElementById('detected-tech-data');
+    if (!container) return;
+
+    if (!tech || tech.length === 0) {
+        container.innerHTML = '<div class="data-item"><span class="data-value" style="color: var(--text-muted); font-style: italic;">No recognized funnel technology detected.</span></div>';
+        return;
+    }
+
+    let html = '';
+    tech.forEach(t => {
+        html += `<span class="badge" style="background: #1e293b; color: #a5b4fc; border: 1px solid #334155; font-weight: bold; padding: 6px 12px; font-size: 0.8rem; border-radius: 6px;">${t}</span>`;
+    });
+
+    container.innerHTML = html;
+}
+
+
+function renderVSL(vsls) {
+    const container = document.getElementById('vsl-data');
+    if (!container) return;
+
+    if (!vsls || vsls.length === 0) {
+        container.innerHTML = '<div class="data-item"><span class="data-value" style="color: var(--text-muted);">No sales videos detected.</span></div>';
+        return;
+    }
+
+    let html = '';
+    vsls.forEach(url => {
+        html += `
+            <div class="data-item">
+                <a href="${url}" target="_blank" class="data-value" style="color: var(--accent); text-decoration: none; word-break: break-all; display: block; font-size: 0.8rem;">
+                    ▶️ ${url}
+                </a>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function renderForms(forms) {
+    const container = document.getElementById('forms-data');
+    if (!container) return;
+
+    if (!forms || forms.length === 0) {
+        container.innerHTML = '<div class="data-item"><span class="data-value" style="color: var(--text-muted);">No lead capture forms detected.</span></div>';
+        return;
+    }
+
+    let html = '';
+    forms.forEach(form => {
+        html += `
+            <div class="data-item" style="border-left: 2px solid var(--success); padding-left: 10px; margin-bottom: 12px;">
+                <div class="data-value" style="font-weight: bold; color: var(--text-main);">${form.buttonText}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                    Inputs: ${form.inputCount} | Action: <span style="font-family: monospace; word-break: break-all;">${form.actionUrl}</span>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function renderCopyPsychology(metrics) {
+    const container = document.getElementById('psychology-data');
+    if (!container) return;
+
+    let html = `
+        <div class="data-item">
+            <span class="data-label">Est. Reading Time</span>
+            <div class="data-value" style="font-size: 1.2rem; font-weight: bold; color: var(--accent);">${metrics.readingTime} min</div>
+        </div>
+        <div class="data-item">
+            <span class="data-label">Psychological Triggers</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3);">🔥 Urgency: ${metrics.urgencyCount}</span>
+                <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3);">🛡️ Risk Reversal: ${metrics.riskReversalCount}</span>
+                <span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.3);">🔒 Exclusivity: ${metrics.exclusivityCount}</span>
+            </div>
+        </div>
+    `;
+    container.innerHTML = html;
+}
+
+
+function renderEliteRecon(recon) {
+    const container = document.getElementById('elite-recon-data');
+    if (!container) return;
+
+    let html = '';
+
+    // UTMs
+    html += `
+        <div class="data-item" style="margin-bottom: 16px;">
+            <span class="data-label">🎯 Ad Traffic & UTMs</span>
+            <div class="data-value">
+                ${recon.utms ? Object.entries(recon.utms).map(([k, v]) => `
+                    <div style="font-size: 0.8rem; margin-bottom: 4px;">
+                        <span style="color: var(--text-muted); font-weight: 500;">${k.replace('utm_', '').toUpperCase()}:</span> 
+                        <span style="color: var(--accent);">${v}</span>
+                    </div>
+                `).join('') : '<span style="color: var(--text-muted); font-style: italic;">No active ad tracking parameters detected.</span>'}
+            </div>
+        </div>
+    `;
+
+    // Hidden Upsells
+    html += `
+        <div class="data-item" style="margin-bottom: 16px;">
+            <span class="data-label">🚪 Hidden Funnel Pages (Pre-fetched)</span>
+            <div class="data-value">
+                ${recon.upsells && recon.upsells.length > 0 ? recon.upsells.map(url => `
+                    <a href="${url}" target="_blank" style="color: var(--accent); text-decoration: none; display: block; font-size: 0.75rem; margin-bottom: 4px; word-break: break-all;">
+                        🔗 ${url}
+                    </a>
+                `).join('') : '<span style="color: var(--text-muted); font-style: italic;">No hidden pre-fetched pages detected.</span>'}
+            </div>
+        </div>
+    `;
+
+    // A/B Tests
+    html += `
+        <div class="data-item">
+            <span class="data-label">🔬 Active Split Tests</span>
+            <div class="data-value">
+                ${recon.abTests && recon.abTests.length > 0 ? recon.abTests.map(test => `
+                    <span class="badge" style="background: rgba(244, 63, 94, 0.1); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.2); font-weight: bold;">
+                        ⚠️ ${test} Detected
+                    </span>
+                `).join('') : '<span style="color: var(--text-muted); font-style: italic;">No split testing platforms detected.</span>'}
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
 
 function renderWP(wp) {
     const container = document.getElementById('wp-data');
@@ -462,41 +746,15 @@ function renderFunnels(urls) {
 }
 
 function exportVault(data) {
-    const currentMonth = new Date().getMonth();
-    chrome.storage.local.get(['exportCount', 'exportMonth'], (res) => {
-        let count = res.exportCount || 0;
-        let month = res.exportMonth;
+    // Capture Tab
+    chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
+        const dateStr = new Date().toLocaleString();
+        let domain = 'unknown-domain';
+        let screenshotTag = '';
 
-        if (month !== currentMonth) {
-            count = 0; // Reset for new month
-            chrome.storage.local.set({ exportMonth: currentMonth });
+        if (dataUrl) {
+            screenshotTag = `<img src="${dataUrl}" alt="Funnel Swipe Screenshot" class="screenshot">`;
         }
-
-        if (count >= 3) {
-            return; // Already hit limit, UI should be locked
-        }
-
-        count++;
-        chrome.storage.local.set({ exportCount: count });
-
-        // Update UI
-        const span = document.getElementById('export-count');
-        const btn = document.getElementById('export-btn');
-        if (span) span.innerText = count;
-        if (count >= 3 && btn) {
-            btn.disabled = true;
-            btn.innerText = "🔒 Upgrade to Premium for Unlimited Exports";
-        }
-
-        // Capture Tab
-        chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
-            const dateStr = new Date().toLocaleString();
-            let domain = 'unknown-domain';
-            let screenshotTag = '';
-
-            if (dataUrl) {
-                screenshotTag = `<img src="${dataUrl}" alt="Funnel Swipe Screenshot" class="screenshot">`;
-            }
 
             if (window.currentScanData && window.currentScanData.omni && window.currentScanData.omni.hostname) {
                 domain = window.currentScanData.omni.hostname;
@@ -632,6 +890,14 @@ function exportVault(data) {
                     : '<div class="empty">No standard e-commerce platforms detected.</div>'}
             </div>
 
+            <!-- Tech Stack Profiler -->
+            <div class="card">
+                <h2>🔌 Tech Stack Profiler</h2>
+                ${data.detectedTech && data.detectedTech.length > 0
+                    ? data.detectedTech.map(t => `<span class="badge" style="color:#a5b4fc; border-color:#334155; background:#1e293b;">${t}</span>`).join('')
+                    : '<div class="empty">No recognized funnel technology detected.</div>'}
+            </div>
+
             <!-- SEO & Keywords -->
             <div class="card">
                 <h2>🔍 SEO & Keyword Density</h2>
@@ -640,6 +906,56 @@ function exportVault(data) {
                 ${data.seo && data.seo.topKeywords && data.seo.topKeywords.length > 0
                     ? data.seo.topKeywords.map(k => `<span class="badge">${k.word} (${k.count})</span>`).join('')
                     : '<div class="empty">No keyword data extracted.</div>'}
+            </div>
+
+            <!-- Elite Recon -->
+            <div class="card">
+                <h2>🕵️‍♂️ Elite Recon (Hidden Data)</h2>
+                <div style="margin-bottom:12px;"><strong>Ad Targeting (UTMs):</strong><br>
+                ${data.eliteRecon && data.eliteRecon.utms 
+                    ? Object.entries(data.eliteRecon.utms).map(([k, v]) => `<div style="font-size:0.8rem;"><span style="color:var(--text-muted);">${k}:</span> ${v}</div>`).join('')
+                    : '<div class="empty">No ad tracking parameters found.</div>'}
+                </div>
+
+                <div style="margin-bottom:12px;"><strong>Hidden Funnel Entry Points:</strong><br>
+                ${data.eliteRecon && data.eliteRecon.upsells && data.eliteRecon.upsells.length > 0
+                    ? data.eliteRecon.upsells.map(url => `<div style="font-size:0.75rem; word-break:break-all; margin-bottom:4px;">🔗 <a href="${url}" target="_blank" style="color:var(--accent); text-decoration:none;">${url}</a></div>`).join('')
+                    : '<div class="empty">No hidden pre-fetched pages found.</div>'}
+                </div>
+
+                <div><strong>Active Split Testing:</strong><br>
+                ${data.eliteRecon && data.eliteRecon.abTests && data.eliteRecon.abTests.length > 0
+                    ? data.eliteRecon.abTests.map(t => `<span class="badge" style="color:#fb7185; border-color:#f43f5e;">${t} Detected</span>`).join('')
+                    : '<div class="empty">No A/B testing platforms found.</div>'}
+                </div>
+            </div>
+
+            <!-- Conversion Metrics -->
+            <div class="card">
+                <h2>📈 Conversion Metrics</h2>
+                <div style="margin-bottom:12px;"><strong>Estimated Reading Time:</strong> ${data.copyMetrics ? data.copyMetrics.readingTime : 0} min</div>
+                
+                <div style="margin-bottom:12px;"><strong>Psychological Triggers:</strong><br>
+                ${data.copyMetrics 
+                    ? `
+                        <span class="badge" style="color:#fca5a5; border-color:#ef4444;">Urgency: ${data.copyMetrics.urgencyCount}</span>
+                        <span class="badge" style="color:#6ee7b7; border-color:#10b981;">Risk Reversal: ${data.copyMetrics.riskReversalCount}</span>
+                        <span class="badge" style="color:#d8b4fe; border-color:#a855f7;">Exclusivity: ${data.copyMetrics.exclusivityCount}</span>
+                    `
+                    : '<div class="empty">No copy metrics extracted.</div>'}
+                </div>
+
+                <div style="margin-bottom:12px;"><strong>VSL & Video Assets:</strong><br>
+                ${data.vsls && data.vsls.length > 0
+                    ? data.vsls.map(url => `<div style="font-size:0.8rem; word-break:break-all; margin-bottom:4px;">▶️ <a href="${url}" target="_blank" style="color:var(--accent); text-decoration:none;">${url}</a></div>`).join('')
+                    : '<div class="empty">No sales videos detected.</div>'}
+                </div>
+
+                <div><strong>Lead-Gen Forms:</strong><br>
+                ${data.forms && data.forms.length > 0
+                    ? data.forms.map(f => `<div style="margin-bottom:8px; border-left:2px solid var(--success); padding-left:8px; font-size:0.8rem;"><strong>${f.buttonText}</strong> (Inputs: ${f.inputCount})<br><span style="color:var(--text-muted); font-size:0.7rem;">Action: ${f.actionUrl}</span></div>`).join('')
+                    : '<div class="empty">No lead capture forms detected.</div>'}
+                </div>
             </div>
 
             <!-- Page Skeleton (SEO) -->
@@ -744,7 +1060,6 @@ function exportVault(data) {
                 saveAs: true
             }, () => {
                 URL.revokeObjectURL(url);
-            });
         });
     });
 }

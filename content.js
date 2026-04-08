@@ -475,6 +475,123 @@ function extractProductGrid() {
 
     return products;
 }
+function detectTech() {
+    const tech = new Set();
+    
+    // Shopify
+    if (document.querySelector('script[src*="cdn.shopify.com"]') || window.Shopify) tech.add('Shopify');
+    
+    // WooCommerce
+    if (document.body.classList.contains('woocommerce') || document.querySelector('meta[name="generator"][content*="WooCommerce"]')) tech.add('WooCommerce');
+    
+    // ClickFunnels
+    if (document.querySelector('meta[name="author"][content="ClickFunnels"]') || document.querySelector('link[href*="clickfunnels.com"]')) tech.add('ClickFunnels');
+    
+    // WordPress
+    if (document.querySelector('meta[name="generator"][content*="WordPress"]') || document.querySelector('link[href*="wp-content"]')) tech.add('WordPress');
+    
+    // Elementor
+    if (document.body.classList.contains('elementor-page') || document.querySelector('link[href*="elementor/css"]')) tech.add('Elementor');
+    
+    // Stripe
+    if (document.querySelector('script[src*="js.stripe.com"]')) tech.add('Stripe');
+    
+    // Klaviyo
+    if (document.querySelector('script[src*="static.klaviyo.com"]')) tech.add('Klaviyo');
+    
+    // GTM
+    if (document.querySelector('script[src*="googletagmanager.com/gtm.js"]')) tech.add('Google Tag Manager');
+    
+    // Meta Pixel
+    if (document.querySelector('script[src*="connect.facebook.net/en_US/fbevents.js"]')) tech.add('Meta Pixel');
+    
+    // TikTok Pixel
+    if (document.querySelector('script[src*="analytics.tiktok.com"]')) tech.add('TikTok Pixel');
+
+    return Array.from(tech);
+}
+
+function extractVSL() {
+    const vsls = [];
+    const iframes = Array.from(document.getElementsByTagName('iframe'));
+    const videos = Array.from(document.getElementsByTagName('video'));
+
+    iframes.forEach(iframe => {
+        const src = iframe.src || '';
+        if (src.includes('youtube.com') || src.includes('vimeo.com') || src.includes('wistia.com')) {
+            vsls.push(src);
+        }
+    });
+
+    videos.forEach(video => {
+        const src = video.src || (video.querySelector('source') ? video.querySelector('source').src : '');
+        if (src) vsls.push(src);
+    });
+
+    return [...new Set(vsls)];
+}
+
+function extractForms() {
+    const forms = Array.from(document.getElementsByTagName('form'));
+    return forms.map(form => {
+        const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]') || form.querySelector('button');
+        return {
+            actionUrl: form.action || 'self/javascript',
+            inputCount: form.querySelectorAll('input, select, textarea').length,
+            buttonText: submitBtn ? submitBtn.innerText.trim() : 'Submit'
+        };
+    });
+}
+
+function extractCopyMetrics() {
+    const bodyText = document.body.innerText || '';
+    const words = bodyText.split(/\s+/).filter(w => w.length > 0);
+    const wordCount = words.length;
+    const readingTime = Math.ceil(wordCount / 200);
+
+    const getCount = (regex) => (bodyText.match(regex) || []).length;
+
+    return {
+        readingTime,
+        urgencyCount: getCount(/\b(today|now|limited|expires|hurry)\b/gi),
+        riskReversalCount: getCount(/\b(guarantee|risk-free|refund|secure)\b/gi),
+        exclusivityCount: getCount(/\b(secret|exclusive|proven|invite)\b/gi)
+    };
+}
+
+function extractUTMs() {
+    const params = new URLSearchParams(window.location.search);
+    const trackingKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'ttclid'];
+    const found = {};
+    let hasAny = false;
+
+    trackingKeys.forEach(key => {
+        if (params.has(key)) {
+            found[key] = params.get(key);
+            hasAny = true;
+        }
+    });
+
+    return hasAny ? found : null;
+}
+
+function extractHiddenUpsells() {
+    const links = Array.from(document.querySelectorAll('link[rel="prefetch"], link[rel="prerender"]'));
+    return links.map(link => link.href).filter(href => href);
+}
+
+function detectABTests() {
+    const scripts = Array.from(document.getElementsByTagName('script'));
+    const scriptsSrc = scripts.map(s => s.src.toLowerCase()).join(' ');
+    const tests = [];
+
+    if (scriptsSrc.includes('optimizely.com')) tests.push('Optimizely');
+    if (scriptsSrc.includes('visualwebsiteoptimizer.com') || scriptsSrc.includes('vwo_code')) tests.push('VWO');
+    if (scriptsSrc.includes('convert.com')) tests.push('Convert');
+    if (scriptsSrc.includes('googleoptimize.com')) tests.push('Google Optimize');
+
+    return [...new Set(tests)];
+}
 
 
 // We can send this over via message listener
@@ -492,7 +609,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 skeleton: getVisualSkeleton(),
                 adRadar: getAdLibraryRadar(),
                 onPageProducts: extractProductGrid(),
-                hiddenFunnels: await getHiddenFunnels()
+                hiddenFunnels: await getHiddenFunnels(),
+                detectedTech: detectTech(),
+                vsls: extractVSL(),
+                forms: extractForms(),
+                copyMetrics: extractCopyMetrics(),
+                eliteRecon: {
+                    utms: extractUTMs(),
+                    upsells: extractHiddenUpsells(),
+                    abTests: detectABTests()
+                }
             };
             sendResponse(data);
         })();

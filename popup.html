@@ -10,7 +10,7 @@
 
 <body>
     <div class="header">
-        <h1>The Funnel <span>X-Ray</span></h1>
+        <h1>The Funnel <span>X-Ray</span> <span id="pro-badge" style="display: none;" class="pro-badge">👑 PRO</span></h1>
         <div class="status-indicator"></div>
     </div>
 
@@ -49,6 +49,61 @@
                 <span class="pulse-dot"></span>
                 👁️ View Active Meta Ads
             </a>
+        </div>
+
+        <!-- Tech Stack Profiler Accordion -->
+        <div class="accordion" style="border-color: #6366f1;">
+            <button class="accordion-header" aria-expanded="false" style="color: #a5b4fc;">
+                <span class="icon">🔌</span> Tech Stack Profiler
+                <span class="chevron"></span>
+            </button>
+            <div class="accordion-content">
+                <div id="detected-tech-data" class="data-group" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+            </div>
+        </div>
+
+        <!-- VSL & Video Assets Accordion -->
+        <div class="accordion" style="border-color: #f59e0b;">
+            <button class="accordion-header" aria-expanded="false" style="color: #fbbf24;">
+                <span class="icon">🎬</span> VSL & Video Assets
+                <span class="chevron"></span>
+            </button>
+            <div class="accordion-content">
+                <div id="vsl-data" class="data-group"></div>
+            </div>
+        </div>
+
+        <!-- Lead-Gen Forms Accordion -->
+        <div class="accordion" style="border-color: #10b981;">
+            <button class="accordion-header" aria-expanded="false" style="color: #34d399;">
+                <span class="icon">🎣</span> Lead-Gen Forms
+                <span class="chevron"></span>
+            </button>
+            <div class="accordion-content">
+                <div id="forms-data" class="data-group"></div>
+            </div>
+        </div>
+
+        <!-- Copy Psychology Accordion -->
+        <div class="accordion" style="border-color: #ec4899;">
+            <button class="accordion-header" aria-expanded="false" style="color: #f472b6;">
+                <span class="icon">🧠</span> Copy Psychology
+                <span class="chevron"></span>
+            </button>
+            <div class="accordion-content">
+                <div id="psychology-data" class="data-group"></div>
+            </div>
+        </div>
+
+        <!-- Elite Recon (Hidden Data) Accordion -->
+        <div class="accordion" style="border-color: #f43f5e; box-shadow: 0 0 10px rgba(244, 63, 94, 0.1);">
+            <button class="accordion-header" aria-expanded="false" style="color: #fb7185;">
+                <span class="icon">🕵️‍♂️</span> Elite Recon (Hidden Data)
+                <span class="chevron"></span>
+            </button>
+            <div class="accordion-content">
+                <div id="elite-recon-data" class="data-group"></div>
+            </div>
         </div>
 
         <!-- Hidden Funnel Steps Accordion (Freemium) -->
@@ -153,8 +208,28 @@
         <!-- Vault Export Button (for data) -->
         <div style="margin-top: 24px; text-align: center;">
             <button id="export-btn" class="btn btn-export">
-                📥 Export Swipe JSON (<span id="export-count">0</span>/3 free)
+                📥 Export Swipe File (<span id="export-count">0</span>/3 free)
             </button>
+            <p id="export-status" style="display: none; font-size: 0.75rem; margin-top: 8px;"></p>
+        </div>
+    </div>
+
+    <!-- Paywall Screen (Hidden by Default) -->
+    <div id="paywall-screen" style="display: none;">
+        <div class="paywall-container">
+            <div class="paywall-icon">🛑</div>
+            <h2 class="paywall-title">Free Trial Exhausted</h2>
+            <p class="paywall-subtitle">You've used your 3 free exports! Upgrade to PRO for a one-time fee of <strong>$10</strong> to unlock unlimited lifetime exports and Elite Recon data.</p>
+            
+            <button id="upgrade-btn" class="btn paywall-cta">🛒 Upgrade to PRO ($10)</button>
+
+            <div class="paywall-divider">
+                <span>or activate your license</span>
+            </div>
+
+            <input type="text" id="license-key-input" class="paywall-input" placeholder="Paste your Gumroad License Key here...">
+            <button id="activate-btn" class="btn paywall-activate">🔓 Unlock PRO</button>
+            <p id="activation-msg" class="paywall-msg" style="display: none;"></p>
         </div>
     </div>
 
